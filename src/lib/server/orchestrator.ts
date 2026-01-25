@@ -112,22 +112,21 @@ export async function initializeOrchestrator(): Promise<void> {
 }
 
 export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = 'MULTI_AGENT'): Promise<void> {
-  // Ensure initialization on first run
-  await initializeOrchestrator();
-
-  console.log(`[Orchestrator] Starting run ${runId} in ${mode} mode`);
-
-  // 1. Initial Logging
-  await initRunLog(runId);
-  await startAgentLog(runId, 'Orchestrator');
-  await addAgentLog(runId, 'Orchestrator', 'INFO', `실행 시작(${mode})`, `${mode} 모드로 분석을 시작합니다`);
-
   const startTime = Date.now();
+  let currentStage: string = 'INIT';
   const completedStages: string[] = [];
   const errors: string[] = [];
-  let currentStage: string = 'INIT';
 
   try {
+    // Ensure initialization on first run
+    await initializeOrchestrator();
+
+    console.log(`[Orchestrator] Starting run ${runId} in ${mode} mode`);
+
+    // 1. Initial Logging
+    await initRunLog(runId);
+    await startAgentLog(runId, 'Orchestrator');
+    await addAgentLog(runId, 'Orchestrator', 'INFO', `실행 시작(${mode})`, `${mode} 모드로 분석을 시작합니다`);
     const run = await getRun(runId);
     if (!run || run.files.length === 0) throw new Error('No files to process');
 
