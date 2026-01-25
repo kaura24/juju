@@ -1,6 +1,6 @@
 {
 	"//": "File: package.json",
-	"name": "juju-shareholder-analyzer",
+	"name": "juju-shareholder-analyzer-v2",
 	"private": true,
 	"version": "2.0.0",
 	"type": "module",
