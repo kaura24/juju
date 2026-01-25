@@ -29,3 +29,5 @@ vite.config.ts.timestamp-*
 lint_output.txt
 
 .vercel
+
+.vercel

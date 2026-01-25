@@ -5,6 +5,7 @@
 import type { RequestHandler } from './$types';
 import { getRun, getStageEvents } from '$lib/server/storage';
 import { createSSEStream, formatSSEMessage } from '$lib/server/events';
+import { MODEL } from '$lib/server/agents';
 import type { SSEMessage } from '$lib/types';
 
 export const config = {
@@ -32,7 +33,7 @@ export const GET: RequestHandler = async ({ params }) => {
       // 연결 확인 메시지
       const connectMessage: SSEMessage = {
         type: 'completed',
-        payload: { message: 'Connected to event stream' },
+        payload: { message: `Connected to event stream. AI Model: ${MODEL}` },
         timestamp: new Date().toISOString()
       };
       controller.enqueue(encoder.encode(formatSSEMessage(connectMessage)));
