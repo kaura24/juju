@@ -7,7 +7,7 @@
  */
 
 import { readFile } from 'fs/promises';
-import { createCanvas, Image } from 'canvas';
+import { createCanvas, Image } from '@napi-rs/canvas';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import * as UTIF from 'utif';
 
