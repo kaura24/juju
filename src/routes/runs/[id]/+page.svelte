@@ -10,9 +10,9 @@
   import RunSummary from "$lib/components/RunSummary.svelte";
   import RunLogStream from "$lib/components/RunLogStream.svelte";
 
-  // State
-  let finalAnswer: InsightsAnswerSet | null = null;
-  let hitlPacket: HITLPacket | null = null;
+  // State (Svelte 5 Runes)
+  let finalAnswer: InsightsAnswerSet | null = $state(null);
+  let hitlPacket: HITLPacket | null = $state(null);
   let status:
     | "loading"
     | "pending"
@@ -20,9 +20,9 @@
     | "completed"
     | "hitl"
     | "error"
-    | "rejected" = "loading";
-  let connectedModel: string | null = null;
-  let logs: any[] = []; // Store log entries locally
+    | "rejected" = $state("loading");
+  let connectedModel: string | null = $state(null);
+  let logs: any[] = $state([]); // Store log entries locally
 
   const runId = $page.params.id;
   let eventSource: EventSource | null = null;
@@ -178,26 +178,28 @@
     eventSource?.close();
   });
 
-  // Determine active agent
-  $: activeAgent = (() => {
-    // If we have stage event, use that
-    const stageMap: Record<string, string> = {
-      B: "B_Gatekeeper",
-      C: "C_Extractor",
-      D: "D_Normalizer",
-      E: "E_Validator",
-      INSIGHTS: "INS_Analyst",
-      FastExtractor: "FastExtractor",
-    };
+  // Determine active agent (Svelte 5 Derived)
+  let activeAgent = $derived(
+    (() => {
+      // If we have stage event, use that
+      const stageMap: Record<string, string> = {
+        B: "B_Gatekeeper",
+        C: "C_Extractor",
+        D: "D_Normalizer",
+        E: "E_Validator",
+        INSIGHTS: "INS_Analyst",
+        FastExtractor: "FastExtractor",
+      };
 
-    // Check logs for latest agent if no better info
-    if (logs.length > 0) {
-      const lastLog = logs[logs.length - 1];
-      if (lastLog && lastLog.agent) return lastLog.agent;
-    }
+      // Check logs for latest agent if no better info
+      if (logs.length > 0) {
+        const lastLog = logs[logs.length - 1];
+        if (lastLog && lastLog.agent) return lastLog.agent;
+      }
 
-    return null;
-  })();
+      return null;
+    })(),
+  );
 </script>
 
 <svelte:head>

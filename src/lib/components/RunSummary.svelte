@@ -1,10 +1,21 @@
 <script lang="ts">
     import type { InsightsAnswerSet, RunStatus } from "$lib/types";
 
-    export let status: RunStatus | "loading";
-    export let finalAnswer: InsightsAnswerSet | null = null;
-    export let connectedModel: string | null = null;
-    export let hitlId: string | undefined = undefined;
+    interface Props {
+        status: RunStatus | "loading";
+        finalAnswer: InsightsAnswerSet | null;
+        connectedModel: string | null;
+        hitlId: string | undefined;
+    }
+
+    let {
+        status,
+        finalAnswer = null,
+        connectedModel = null,
+        hitlId = undefined,
+    }: Props = $props();
+
+    $inspect(connectedModel); // For debugging in browser console
 
     // Status Badge Logic
     const getStatusInfo = (s: RunStatus | "loading") => {
@@ -61,47 +72,53 @@
         }
     };
 
-    $: statusInfo = getStatusInfo(status);
+    let statusInfo = $derived(getStatusInfo(status));
 
-    $: totalShareholders = (() => {
-        const summaryCount =
-            finalAnswer?.validation_summary?.summary_metrics?.total_records;
-        if (summaryCount != null && summaryCount > 0) {
-            return summaryCount;
-        }
-        if (
-            finalAnswer?.over_25_percent &&
-            !("UNKNOWN" in finalAnswer.over_25_percent)
-        ) {
-            return finalAnswer.over_25_percent.length;
-        }
-        return 0;
-    })();
+    let totalShareholders = $derived(
+        (() => {
+            const summaryCount =
+                finalAnswer?.validation_summary?.summary_metrics?.total_records;
+            if (summaryCount != null && summaryCount > 0) {
+                return summaryCount;
+            }
+            if (
+                finalAnswer?.over_25_percent &&
+                !("UNKNOWN" in finalAnswer.over_25_percent)
+            ) {
+                return finalAnswer.over_25_percent.length;
+            }
+            return 0;
+        })(),
+    );
 
     // Calculate Beneficial Owners Count
-    $: beneficialOwnerCount = (() => {
-        if (
-            finalAnswer?.over_25_percent &&
-            !("UNKNOWN" in finalAnswer.over_25_percent)
-        ) {
-            return finalAnswer.over_25_percent.length;
-        }
-        return 0;
-    })();
+    let beneficialOwnerCount = $derived(
+        (() => {
+            if (
+                finalAnswer?.over_25_percent &&
+                !("UNKNOWN" in finalAnswer.over_25_percent)
+            ) {
+                return finalAnswer.over_25_percent.length;
+            }
+            return 0;
+        })(),
+    );
 
     // Check if Top Shareholder Fallback occurred
-    $: isFallbackBO = (() => {
-        if (
-            !finalAnswer?.over_25_percent ||
-            "UNKNOWN" in finalAnswer.over_25_percent
-        ) {
-            return false;
-        }
-        return (
-            finalAnswer.over_25_percent.length > 0 &&
-            finalAnswer.over_25_percent.every((h) => (h.ratio || 0) < 25)
-        );
-    })();
+    let isFallbackBO = $derived(
+        (() => {
+            if (
+                !finalAnswer?.over_25_percent ||
+                "UNKNOWN" in finalAnswer.over_25_percent
+            ) {
+                return false;
+            }
+            return (
+                finalAnswer.over_25_percent.length > 0 &&
+                finalAnswer.over_25_percent.every((h) => (h.ratio || 0) < 25)
+            );
+        })(),
+    );
 
     // Force stop handler
     async function handleForceStop() {
