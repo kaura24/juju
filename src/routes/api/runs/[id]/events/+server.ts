@@ -7,9 +7,13 @@ import { getRun, getStageEvents } from '$lib/server/storage';
 import { createSSEStream, formatSSEMessage } from '$lib/server/events';
 import type { SSEMessage } from '$lib/types';
 
+export const config = {
+  maxDuration: 60
+};
+
 export const GET: RequestHandler = async ({ params }) => {
   const runId = params.id;
-  
+
   // Run 존재 확인
   const run = await getRun(runId);
   if (!run) {
@@ -18,11 +22,11 @@ export const GET: RequestHandler = async ({ params }) => {
       headers: { 'Content-Type': 'application/json' }
     });
   }
-  
+
   // 기존 이벤트들을 먼저 전송하고 새 이벤트 구독
   const encoder = new TextEncoder();
   const existingEvents = await getStageEvents(runId);
-  
+
   const stream = new ReadableStream({
     async start(controller) {
       // 연결 확인 메시지
@@ -32,7 +36,7 @@ export const GET: RequestHandler = async ({ params }) => {
         timestamp: new Date().toISOString()
       };
       controller.enqueue(encoder.encode(formatSSEMessage(connectMessage)));
-      
+
       // 기존 이벤트 전송
       for (const event of existingEvents) {
         const message: SSEMessage = {
@@ -42,7 +46,7 @@ export const GET: RequestHandler = async ({ params }) => {
         };
         controller.enqueue(encoder.encode(formatSSEMessage(message)));
       }
-      
+
       // 이미 완료된 Run인 경우
       if (run.status === 'completed' || run.status === 'rejected' || run.status === 'error') {
         const statusMessage: SSEMessage = {
@@ -54,13 +58,13 @@ export const GET: RequestHandler = async ({ params }) => {
         controller.close();
         return;
       }
-      
+
       // 새 이벤트 구독
       const { subscribeToRun } = await import('$lib/server/events');
       const cleanup = subscribeToRun(runId, (message) => {
         try {
           controller.enqueue(encoder.encode(formatSSEMessage(message)));
-          
+
           // 완료/에러 시 스트림 종료
           if (message.type === 'completed' || message.type === 'error') {
             setTimeout(() => {
@@ -75,7 +79,7 @@ export const GET: RequestHandler = async ({ params }) => {
           // 스트림이 닫힌 경우 무시
         }
       });
-      
+
       // 취소 시 정리는 cancel()에서 처리
       (controller as unknown as { cleanup?: () => void }).cleanup = cleanup;
     },
@@ -86,7 +90,7 @@ export const GET: RequestHandler = async ({ params }) => {
       }
     }
   });
-  
+
   return new Response(stream, {
     headers: {
       'Content-Type': 'text/event-stream',

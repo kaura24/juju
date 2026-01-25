@@ -7,7 +7,11 @@ import type { RequestHandler } from './$types';
 import { getRun } from '$lib/server/storage';
 import { executeRun } from '$lib/server/orchestrator';
 
-export const POST: RequestHandler = async ({ params, request }) => {
+export const config = {
+  maxDuration: 60
+};
+
+export const POST: RequestHandler = async ({ params, request, platform }) => {
   try {
     const runId = params.id;
 
@@ -26,9 +30,14 @@ export const POST: RequestHandler = async ({ params, request }) => {
     const { mode } = await request.json().catch(() => ({ mode: undefined }));
 
     // 백그라운드에서 실행 (즉시 응답)
-    executeRun(runId, mode).catch(error => {
+    const executionPromise = executeRun(runId, mode).catch(error => {
       console.error(`[API] Background execution error for run ${runId}:`, error);
     });
+
+    // Vercel에서 백그라운드 프로세스가 죽지 않도록 대기 요청
+    if ((platform as any)?.waitUntil) {
+      (platform as any).waitUntil(executionPromise);
+    }
 
     return json({
       success: true,
