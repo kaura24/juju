@@ -1,4 +1,4 @@
-import { createCanvas } from 'canvas';
+import { createCanvas } from '@napi-rs/canvas';
 import { writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
@@ -86,12 +86,12 @@ ctx.stroke();
 ctx.fillStyle = '#f8fafc';
 ctx.font = 'bold 56px system-ui, -apple-system, sans-serif';
 ctx.textAlign = 'center';
-ctx.fillText('사업자등록번호 추출기', 600, 470);
+ctx.fillText('JuJu 주주명부 분석기', 600, 470);
 
 // Subtitle
 ctx.fillStyle = '#94a3b8';
 ctx.font = '28px system-ui, -apple-system, sans-serif';
-ctx.fillText('이미지에서 상품번호로 사업자번호 자동 조회', 600, 530);
+ctx.fillText('주주명부 AI 분석 및 실소유자 식별 시스템', 600, 530);
 
 // Bottom accent line
 const accentGrad = ctx.createLinearGradient(400, 580, 800, 580);
