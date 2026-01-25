@@ -1,3 +1,4 @@
+/** File: src/lib/client/imageShrink.ts */
 /**
  * 클라이언트 사이드 이미지 리사이징/압축 모듈
  * - Vercel 4.5MB 제한을 위해 4.2MB 안전 마진 타겟
@@ -83,7 +84,7 @@ const DEFAULT_OPTIONS: Required<ShrinkOptions> = {
 function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
 	return new Promise((resolve, reject) => {
 		const reader = new FileReader();
-		
+
 		reader.onload = () => {
 			if (reader.result instanceof ArrayBuffer) {
 				resolve(reader.result);
@@ -91,11 +92,11 @@ function readFileAsArrayBuffer(file: File): Promise<ArrayBuffer> {
 				reject(new Error('ArrayBuffer 변환 실패'));
 			}
 		};
-		
+
 		reader.onerror = () => {
 			reject(new Error(`파일 읽기 실패: ${reader.error?.message || '알 수 없음'}`));
 		};
-		
+
 		reader.readAsArrayBuffer(file);
 	});
 }
@@ -131,7 +132,7 @@ interface FileData {
  */
 async function loadWithImageBitmap(fileData: FileData, timeout: number): Promise<HTMLImageElement> {
 	const startTime = Date.now();
-	
+
 	// createImageBitmap 지원 확인
 	if (typeof createImageBitmap !== 'function') {
 		const error = 'createImageBitmap 미지원';
@@ -162,25 +163,25 @@ async function loadWithImageBitmap(fileData: FileData, timeout: number): Promise
 			const blob = arrayBufferToBlob(fileData.buffer, fileData.type || 'image/jpeg');
 			const bitmap = await createImageBitmap(blob);
 			clearTimeout(timeoutId);
-			
+
 			// ImageBitmap을 Canvas를 통해 HTMLImageElement로 변환
 			const canvas = document.createElement('canvas');
 			canvas.width = bitmap.width;
 			canvas.height = bitmap.height;
-			
+
 			const ctx = canvas.getContext('2d');
 			if (!ctx) {
 				bitmap.close();
 				throw new Error('Canvas context 생성 실패');
 			}
-			
+
 			ctx.drawImage(bitmap, 0, 0);
 			bitmap.close();
-			
+
 			// Canvas를 Data URL로 변환하여 Image 생성
 			const dataURL = canvas.toDataURL('image/jpeg', 0.95);
 			const img = new Image();
-			
+
 			img.onload = () => {
 				addLog({
 					method: 'ImageBitmap',
@@ -190,7 +191,7 @@ async function loadWithImageBitmap(fileData: FileData, timeout: number): Promise
 				});
 				resolve(img);
 			};
-			
+
 			img.onerror = () => {
 				const error = 'ImageBitmap->Image 변환 실패';
 				addLog({
@@ -202,9 +203,9 @@ async function loadWithImageBitmap(fileData: FileData, timeout: number): Promise
 				});
 				reject(new Error(error));
 			};
-			
+
 			img.src = dataURL;
-			
+
 		} catch (err) {
 			clearTimeout(timeoutId);
 			const error = `ImageBitmap 생성 실패: ${err instanceof Error ? err.message : err}`;
@@ -225,7 +226,7 @@ async function loadWithImageBitmap(fileData: FileData, timeout: number): Promise
  */
 async function loadWithDataURL(fileData: FileData, timeout: number): Promise<HTMLImageElement> {
 	const startTime = Date.now();
-	
+
 	return new Promise((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			const error = 'DataURL 타임아웃';
@@ -242,7 +243,7 @@ async function loadWithDataURL(fileData: FileData, timeout: number): Promise<HTM
 		try {
 			const dataURL = arrayBufferToDataURL(fileData.buffer, fileData.type || 'image/jpeg');
 			const img = new Image();
-			
+
 			img.onload = async () => {
 				clearTimeout(timeoutId);
 				try {
@@ -304,7 +305,7 @@ async function loadWithObjectURL(fileData: FileData, timeout: number): Promise<H
 	const startTime = Date.now();
 	const blob = arrayBufferToBlob(fileData.buffer, fileData.type || 'image/jpeg');
 	const url = URL.createObjectURL(blob);
-	
+
 	return new Promise((resolve, reject) => {
 		const timeoutId = setTimeout(() => {
 			URL.revokeObjectURL(url);
@@ -465,55 +466,55 @@ function isHEICFormat(file: File): boolean {
  */
 export function isSupportedImageType(file: File): { supported: boolean; message?: string } {
 	const supportedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
-	
+
 	if (isHEICFormat(file)) {
 		return {
 			supported: false,
 			message: 'HEIC/HEIF 형식은 지원하지 않습니다. iPhone 설정에서 "가장 호환성이 높은 형식"으로 변경하거나 JPEG/PNG로 변환해주세요.'
 		};
 	}
-	
+
 	// MIME 타입이 없거나 알 수 없는 경우도 허용 (모바일에서 종종 발생)
 	if (!file.type || file.type === '' || file.type === 'application/octet-stream') {
 		// 확장자로 확인
 		const name = file.name.toLowerCase();
-		const hasValidExtension = 
-			name.endsWith('.jpg') || 
-			name.endsWith('.jpeg') || 
-			name.endsWith('.png') || 
-			name.endsWith('.webp') || 
+		const hasValidExtension =
+			name.endsWith('.jpg') ||
+			name.endsWith('.jpeg') ||
+			name.endsWith('.png') ||
+			name.endsWith('.webp') ||
 			name.endsWith('.gif');
-		
+
 		if (hasValidExtension) {
 			return { supported: true };
 		}
-		
+
 		// 확장자도 없으면 일단 시도해보기 (모바일 카메라에서 종종 발생)
 		console.warn('[ImageType] MIME 타입 없음, 확장자 확인 불가. 시도해봅니다:', file.name);
 		return { supported: true };
 	}
-	
+
 	if (!supportedTypes.includes(file.type)) {
 		// MIME 타입이 있지만 지원하지 않는 경우
 		const name = file.name.toLowerCase();
-		const hasValidExtension = 
-			name.endsWith('.jpg') || 
-			name.endsWith('.jpeg') || 
-			name.endsWith('.png') || 
-			name.endsWith('.webp') || 
+		const hasValidExtension =
+			name.endsWith('.jpg') ||
+			name.endsWith('.jpeg') ||
+			name.endsWith('.png') ||
+			name.endsWith('.webp') ||
 			name.endsWith('.gif');
-		
+
 		if (hasValidExtension) {
 			// 확장자는 올바르므로 허용
 			return { supported: true };
 		}
-		
+
 		return {
 			supported: false,
 			message: `지원하지 않는 파일 형식입니다: ${file.type}. JPEG, PNG, WebP, GIF 형식을 사용해주세요.`
 		};
 	}
-	
+
 	return { supported: true };
 }
 
@@ -570,7 +571,7 @@ export async function shrinkImageFromBuffer(
 	options: ShrinkOptions = {}
 ): Promise<ShrinkResult> {
 	const opts = { ...DEFAULT_OPTIONS, ...options };
-	
+
 	console.log('[ShrinkFromBuffer] 이미지 처리 시작:', {
 		name: fileData.name,
 		size: fileData.size,
@@ -591,7 +592,7 @@ async function shrinkImageFromFileData(
 
 	// 이미지 로드 (3가지 방법 시도)
 	const img = await loadImageRobust(fileData, opts.timeout);
-	
+
 	const originalWidth = img.naturalWidth || img.width;
 	const originalHeight = img.naturalHeight || img.height;
 
@@ -659,10 +660,10 @@ async function shrinkImageFromFileData(
 	// 최소 설정으로 마지막 시도
 	finalWidth = Math.round(originalWidth * opts.minScale);
 	finalHeight = Math.round(originalHeight * opts.minScale);
-	
+
 	if (finalWidth < 10) finalWidth = 10;
 	if (finalHeight < 10) finalHeight = 10;
-	
+
 	blob = await imageToBlob(img, finalWidth, finalHeight, opts.minQuality, mimeType);
 
 	console.log('[Shrink] 최소 설정 완료:', { finalWidth, finalHeight, size: blob.size });

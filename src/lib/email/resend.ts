@@ -3,10 +3,19 @@
  * - Excel 파일 Base64 첨부
  * - 고정 수신자
  * - 다중 결과 지원
+ * 
+ * ⚠️ 현재 비활성화됨 (EMAIL_ENABLED=false)
+ * 환경변수가 존재하더라도 이메일을 발송하지 않음
  */
 
 import { Resend } from 'resend';
 import type { EnvConfig } from '$lib/util/env';
+
+// ============================================
+// 이메일 기능 비활성화 플래그
+// true로 변경하면 이메일 발송 활성화
+// ============================================
+const EMAIL_ENABLED = false;
 
 export interface EmailAttachment {
 	filename: string;
@@ -23,6 +32,7 @@ export interface SendEmailResult {
 	success: boolean;
 	messageId?: string;
 	error?: string;
+	disabled?: boolean;  // 기능 비활성화로 인해 발송되지 않음
 }
 
 // 추출 결과 항목 타입
@@ -35,11 +45,36 @@ export interface ResultItem {
 
 /**
  * CSV 첨부 이메일 발송
+ * 
+ * ⚠️ 현재 비활성화됨: EMAIL_ENABLED가 false이므로 실제 이메일이 발송되지 않습니다.
  */
 export async function sendEmailWithAttachment(
 	options: SendEmailOptions,
 	config: EnvConfig
 ): Promise<SendEmailResult> {
+	// 이메일 기능 비활성화 체크
+	if (!EMAIL_ENABLED) {
+		console.log('[Resend] 이메일 기능이 비활성화되어 있습니다 (EMAIL_ENABLED=false)');
+		console.log('[Resend] 발송 예정이었던 이메일:');
+		console.log('[Resend]   To:', config.RECIPIENT_EMAIL || '(미설정)');
+		console.log('[Resend]   Subject:', options.subject);
+		console.log('[Resend]   Attachment:', options.attachment.filename);
+		return {
+			success: false,
+			error: '이메일 기능이 비활성화되어 있습니다',
+			disabled: true
+		};
+	}
+	
+	// API 키 체크
+	if (!config.RESEND_API_KEY) {
+		console.log('[Resend] RESEND_API_KEY가 설정되지 않았습니다');
+		return {
+			success: false,
+			error: 'RESEND_API_KEY not configured'
+		};
+	}
+	
 	const resend = new Resend(config.RESEND_API_KEY);
 
 	try {
@@ -49,8 +84,8 @@ export async function sendEmailWithAttachment(
 		console.log('[Resend] Attachment:', options.attachment.filename);
 
 		const { data, error } = await resend.emails.send({
-			from: config.SENDER_EMAIL,
-			to: config.RECIPIENT_EMAIL,
+			from: config.SENDER_EMAIL!,
+			to: config.RECIPIENT_EMAIL!,
 			subject: options.subject,
 			html: options.body,
 			attachments: [
@@ -86,6 +121,8 @@ export async function sendEmailWithAttachment(
 
 /**
  * 상품번호 조회 결과 이메일 발송 (다중 결과 지원)
+ * 
+ * ⚠️ 현재 비활성화됨: EMAIL_ENABLED가 false이므로 실제 이메일이 발송되지 않습니다.
  */
 export async function sendResultEmail(
 	productCode: string,
@@ -94,6 +131,17 @@ export async function sendResultEmail(
 	excelFilename: string,
 	config: EnvConfig
 ): Promise<SendEmailResult> {
+	// 이메일 기능 비활성화 체크
+	if (!EMAIL_ENABLED) {
+		console.log('[Resend] 이메일 기능이 비활성화되어 있습니다 (EMAIL_ENABLED=false)');
+		console.log('[Resend] 결과 이메일 발송 스킵: 상품번호', productCode, '/', items.length, '건');
+		return {
+			success: false,
+			error: '이메일 기능이 비활성화되어 있습니다',
+			disabled: true
+		};
+	}
+	
 	const totalFound = items.length;
 	const subject = `[사업자등록번호 조회 완료] 상품번호 ${productCode} (${totalFound}건)`;
 

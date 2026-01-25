@@ -1,7 +1,8 @@
 {
-	"name": "affiliate-code-extractor",
+	"//": "File: package.json",
+	"name": "juju-shareholder-analyzer",
 	"private": true,
-	"version": "1.0.0",
+	"version": "2.0.0",
 	"type": "module",
 	"scripts": {
 		"dev": "vite dev",
@@ -14,9 +15,12 @@
 		"check-models": "node scripts/check-models.js"
 	},
 	"dependencies": {
+		"@openai/agents": "^0.4.1",
 		"dotenv": "^17.2.3",
 		"openai": "^4.77.0",
+		"pdfjs-dist": "^4.8.69",
 		"resend": "^4.0.0",
+		"utif": "^3.1.0",
 		"uuid": "^11.0.0",
 		"xlsx": "^0.18.5",
 		"zod": "^3.25.67"
@@ -31,6 +35,8 @@
 		"@tailwindcss/typography": "^0.5.19",
 		"@tailwindcss/vite": "^4.1.17",
 		"@types/node": "^24",
+		"@types/pdfjs-dist": "^2.10.377",
+		"@types/utif": "^3.0.6",
 		"@types/uuid": "^10.0.0",
 		"@vitest/browser-playwright": "^4.0.15",
 		"canvas": "^3.2.1",

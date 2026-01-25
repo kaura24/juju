@@ -1,3 +1,4 @@
+/** File: src/lib/util/env.ts */
 /**
  * 환경변수 검증 및 로딩 모듈
  * - 서버 사이드에서만 사용
@@ -8,28 +9,23 @@
 import { env } from '$env/dynamic/private';
 
 export interface EnvConfig {
-	// 상품번호 설정
-	PRODUCT_CODE_REGEX: RegExp;
-	MIN_CONFIDENCE: number;
-
 	// OpenAI 설정
 	OPENAI_API_KEY: string;
 	OPENAI_MODEL: string;
 	OPENAI_ORGANIZATION_ID?: string;
 	OPENAI_PROJECT_ID?: string;
 
-	// Resend 설정
-	RESEND_API_KEY: string;
-	RECIPIENT_EMAIL: string;
-	SENDER_EMAIL: string;
+	// Resend 설정 (선택)
+	RESEND_API_KEY?: string;
+	RECIPIENT_EMAIL?: string;
+	SENDER_EMAIL?: string;
 
 	// 개발용
 	MOCK_LLM: boolean;
 }
 
 const REQUIRED_VARS = [
-	'OPENAI_API_KEY',
-	'RESEND_API_KEY'
+	'OPENAI_API_KEY'
 ] as const;
 
 let cachedConfig: EnvConfig | null = null;
@@ -85,38 +81,16 @@ ${missingVars.map(v => `  • ${v}`).join('\n')}
 		throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
 	}
 
-	// 상품번호 Regex 파싱 (기본값: 5자리 숫자)
-	let productCodeRegex: RegExp;
-	const regexStr = env.PRODUCT_CODE_REGEX || '^\\d{5}$';
-	try {
-		productCodeRegex = new RegExp(regexStr);
-	} catch (e) {
-		throw new Error(`Invalid PRODUCT_CODE_REGEX: "${regexStr}" - ${e}`);
-	}
-
-	// Confidence 파싱
-	const minConfidence = parseFloat(env.MIN_CONFIDENCE || '0.6');
-	if (isNaN(minConfidence) || minConfidence < 0 || minConfidence > 1) {
-		throw new Error(
-			`Invalid MIN_CONFIDENCE: "${env.MIN_CONFIDENCE}". Must be a number between 0 and 1.`
-		);
-	}
-
 	cachedConfig = {
-		PRODUCT_CODE_REGEX: productCodeRegex,
-		MIN_CONFIDENCE: minConfidence,
-
 		OPENAI_API_KEY: env.OPENAI_API_KEY || '',
-		// 기본 모델: gpt-5-mini-2025-08-07 (코드에서 fallback 처리)
-		OPENAI_MODEL: env.OPENAI_MODEL || 'gpt-5-mini-2025-08-07',
+		// 기본 모델은 agents.ts에서 관리하므로 여기서는 빈 값을 허용
+		OPENAI_MODEL: env.OPENAI_MODEL || '',
 		OPENAI_ORGANIZATION_ID: env.OPENAI_ORGANIZATION_ID,
 		OPENAI_PROJECT_ID: env.OPENAI_PROJECT_ID,
 
-		RESEND_API_KEY: env.RESEND_API_KEY!,
-		// 수신자 이메일 (Resend 테스트 계정은 계정 이메일로만 발송 가능)
-		RECIPIENT_EMAIL: 'kaura24@gmail.com',
-		// 발신자 이메일 (Resend 테스트용)
-		SENDER_EMAIL: env.SENDER_EMAIL || 'Acme <onboarding@resend.dev>',
+		RESEND_API_KEY: env.RESEND_API_KEY,
+		RECIPIENT_EMAIL: env.RECIPIENT_EMAIL,
+		SENDER_EMAIL: env.SENDER_EMAIL,
 
 		MOCK_LLM: mockLlm
 	};

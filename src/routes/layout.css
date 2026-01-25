@@ -1,51 +1,380 @@
-/* 전역 스타일 리셋 및 기본 설정 */
+/* ============================================
+ * Fluent Design System - Global Styles
+ * Microsoft Fluent Design inspired theme
+ * ============================================ */
+
+:root {
+  /* Background Colors */
+  --fluent-bg-solid: #1c1c1c;
+  --fluent-bg-layer: #2d2d2d;
+  --fluent-bg-card: rgba(45, 45, 45, 0.7);
+  --fluent-bg-acrylic: rgba(32, 32, 32, 0.85);
+  --fluent-bg-smoke: rgba(0, 0, 0, 0.3);
+  
+  /* Text Colors */
+  --fluent-text-primary: #ffffff;
+  --fluent-text-secondary: rgba(255, 255, 255, 0.78);
+  --fluent-text-tertiary: rgba(255, 255, 255, 0.54);
+  --fluent-text-disabled: rgba(255, 255, 255, 0.36);
+  
+  /* Accent Colors */
+  --fluent-accent: #0078d4;
+  --fluent-accent-light: #60cdff;
+  --fluent-accent-dark: #004c87;
+  
+  /* Semantic Colors */
+  --fluent-success: #0f7b0f;
+  --fluent-warning: #9d5d00;
+  --fluent-error: #c42b1c;
+  --fluent-info: #0078d4;
+  
+  /* Border & Divider */
+  --fluent-border-subtle: rgba(255, 255, 255, 0.0605);
+  --fluent-border-default: rgba(255, 255, 255, 0.0837);
+  --fluent-border-strong: rgba(255, 255, 255, 0.1581);
+  --fluent-divider: rgba(255, 255, 255, 0.0837);
+  
+  /* Elevation / Shadow */
+  --fluent-shadow-2: 0 2px 4px rgba(0, 0, 0, 0.14);
+  --fluent-shadow-4: 0 4px 8px rgba(0, 0, 0, 0.14);
+  --fluent-shadow-8: 0 8px 16px rgba(0, 0, 0, 0.14);
+  --fluent-shadow-16: 0 16px 32px rgba(0, 0, 0, 0.14);
+  --fluent-shadow-28: 0 28px 64px rgba(0, 0, 0, 0.24);
+  --fluent-shadow-64: 0 64px 128px rgba(0, 0, 0, 0.32);
+  
+  /* Typography */
+  --fluent-font-family: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
+  --fluent-font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  
+  /* Spacing */
+  --fluent-spacing-xs: 4px;
+  --fluent-spacing-s: 8px;
+  --fluent-spacing-m: 12px;
+  --fluent-spacing-l: 16px;
+  --fluent-spacing-xl: 20px;
+  --fluent-spacing-xxl: 24px;
+  
+  /* Border Radius */
+  --fluent-radius-s: 4px;
+  --fluent-radius-m: 6px;
+  --fluent-radius-l: 8px;
+  --fluent-radius-xl: 12px;
+  
+  /* Animation */
+  --fluent-duration-fast: 83ms;
+  --fluent-duration-normal: 167ms;
+  --fluent-duration-slow: 250ms;
+  --fluent-easing: cubic-bezier(0.1, 0.9, 0.2, 1);
+}
+
+/* Reset & Base */
 *, *::before, *::after {
-	margin: 0;
-	padding: 0;
-	box-sizing: border-box;
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 html {
-	font-size: 16px;
-	-webkit-font-smoothing: antialiased;
-	-moz-osx-font-smoothing: grayscale;
+  font-family: var(--fluent-font-family);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 body {
-	font-family: 'Noto Sans KR', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-	background: linear-gradient(145deg, #0c0c0c 0%, #1a1a2e 50%, #0f0f1a 100%);
-	min-height: 100vh;
-	color: #e4e4e7;
-	line-height: 1.6;
+  background: var(--fluent-bg-solid);
+  color: var(--fluent-text-primary);
+  min-height: 100vh;
 }
 
-/* 스크롤바 커스텀 */
+/* Selection */
+::selection {
+  background: var(--fluent-accent);
+  color: white;
+}
+
+/* Scrollbar - Fluent Style */
 ::-webkit-scrollbar {
-	width: 8px;
-	height: 8px;
+  width: 14px;
+  height: 14px;
 }
 
 ::-webkit-scrollbar-track {
-	background: rgba(0, 0, 0, 0.2);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-	background: rgba(99, 102, 241, 0.4);
-	border-radius: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 4px solid transparent;
+  border-radius: 7px;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-	background: rgba(99, 102, 241, 0.6);
+  background: rgba(255, 255, 255, 0.35);
+  border: 4px solid transparent;
+  background-clip: padding-box;
 }
 
-/* 선택 영역 스타일 */
-::selection {
-	background: rgba(99, 102, 241, 0.3);
-	color: #fff;
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
-/* 포커스 스타일 */
-:focus-visible {
-	outline: 2px solid #818cf8;
-	outline-offset: 2px;
+/* Focus Styles */
+*:focus-visible {
+  outline: 2px solid var(--fluent-accent);
+  outline-offset: 2px;
+}
+
+/* Links */
+a {
+  color: var(--fluent-accent-light);
+  text-decoration: none;
+  transition: color var(--fluent-duration-fast) var(--fluent-easing);
+}
+
+a:hover {
+  color: var(--fluent-accent);
+  text-decoration: underline;
+}
+
+/* Buttons - Base */
+button {
+  font-family: inherit;
+  font-size: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Input Elements */
+input, textarea, select {
+  font-family: inherit;
+  font-size: inherit;
+  background: var(--fluent-bg-card);
+  border: 1px solid var(--fluent-border-default);
+  border-radius: var(--fluent-radius-s);
+  color: var(--fluent-text-primary);
+  padding: var(--fluent-spacing-s) var(--fluent-spacing-m);
+  transition: all var(--fluent-duration-fast) var(--fluent-easing);
+}
+
+input:hover, textarea:hover, select:hover {
+  border-color: var(--fluent-border-strong);
+}
+
+input:focus, textarea:focus, select:focus {
+  outline: none;
+  border-color: var(--fluent-accent);
+  box-shadow: 0 0 0 1px var(--fluent-accent);
+}
+
+/* Code */
+code, pre {
+  font-family: var(--fluent-font-mono);
+  font-size: 13px;
+}
+
+pre {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: var(--fluent-radius-m);
+  padding: var(--fluent-spacing-l);
+  overflow-x: auto;
+}
+
+code {
+  background: rgba(255, 255, 255, 0.05);
+  padding: 2px 6px;
+  border-radius: var(--fluent-radius-s);
+}
+
+/* Headings */
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: var(--fluent-text-primary);
+}
+
+h1 { font-size: 28px; line-height: 1.2; }
+h2 { font-size: 24px; line-height: 1.25; }
+h3 { font-size: 20px; line-height: 1.3; }
+h4 { font-size: 16px; line-height: 1.4; }
+h5 { font-size: 14px; line-height: 1.4; }
+h6 { font-size: 12px; line-height: 1.4; }
+
+/* Utility Classes */
+.fluent-card {
+  background: var(--fluent-bg-acrylic);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid var(--fluent-border-subtle);
+  border-radius: var(--fluent-radius-l);
+  box-shadow: var(--fluent-shadow-8);
+}
+
+.fluent-card-elevated {
+  background: var(--fluent-bg-card);
+  border: 1px solid var(--fluent-border-default);
+  border-radius: var(--fluent-radius-l);
+  box-shadow: var(--fluent-shadow-16);
+}
+
+.fluent-divider {
+  height: 1px;
+  background: var(--fluent-divider);
+  border: none;
+}
+
+.fluent-text-body {
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--fluent-text-primary);
+}
+
+.fluent-text-caption {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--fluent-text-secondary);
+}
+
+.fluent-text-subtitle {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+  color: var(--fluent-text-primary);
+}
+
+/* Animations */
+@keyframes fluent-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fluent-slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fluent-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes fluent-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-fade-in {
+  animation: fluent-fade-in var(--fluent-duration-normal) var(--fluent-easing);
+}
+
+.animate-slide-up {
+  animation: fluent-slide-up var(--fluent-duration-slow) var(--fluent-easing);
+}
+
+.animate-slide-in-right {
+  animation: fluent-slide-in-right var(--fluent-duration-slow) var(--fluent-easing);
+}
+
+.animate-scale-in {
+  animation: fluent-scale-in var(--fluent-duration-normal) var(--fluent-easing);
+}
+
+/* Loading States */
+@keyframes fluent-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.fluent-skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.05) 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    rgba(255, 255, 255, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: fluent-shimmer 1.5s infinite;
+  border-radius: var(--fluent-radius-s);
+}
+
+/* Reveal Effect Simulation */
+.fluent-reveal {
+  position: relative;
+  overflow: hidden;
+}
+
+.fluent-reveal::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
+    rgba(255, 255, 255, 0.06),
+    transparent 40%
+  );
+  opacity: 0;
+  transition: opacity var(--fluent-duration-fast);
+  pointer-events: none;
+}
+
+.fluent-reveal:hover::before {
+  opacity: 1;
+}
+
+/* Status Badges */
+.fluent-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: var(--fluent-radius-s);
+}
+
+.fluent-badge-success {
+  background: rgba(15, 123, 15, 0.15);
+  color: #6ccb5f;
+}
+
+.fluent-badge-warning {
+  background: rgba(157, 93, 0, 0.15);
+  color: #fce100;
+}
+
+.fluent-badge-error {
+  background: rgba(196, 43, 28, 0.15);
+  color: #ff99a4;
+}
+
+.fluent-badge-info {
+  background: rgba(0, 120, 212, 0.15);
+  color: var(--fluent-accent-light);
 }

@@ -1,138 +1,144 @@
-# 제휴코드 추출기 (Affiliate Code Extractor)
+<!-- File: README.md -->
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.1
 
-이미지에서 특정 제휴코드를 찾아 같은 행의 사업자번호를 자동으로 추출하고, 결과를 CSV로 생성하여 이메일로 발송하는 웹 애플리케이션입니다.
+본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
-## 주요 기능
+---
 
-- 🏷️ **대상 제휴코드 입력**: 찾고자 하는 제휴코드 지정
-- 📷 **이미지 업로드**: 드래그 앤 드롭 또는 클릭으로 이미지 업로드
-- 🔄 **자동 압축**: Vercel 4.5MB 제한에 맞춰 클라이언트에서 자동 리사이징
-- 🤖 **AI 추출**: OpenAI GPT가 이미지에서 제휴코드를 찾아 같은 행의 사업자번호 추출
-- 📧 **이메일 발송**: 결과 CSV를 `kaura24@kbfg.com`으로 발송
-- 🔌 **연결 테스트**: OpenAI API 연결 상태 확인 버튼
+## 🏗️ 아키텍처 및 설계 철학 (Architecture & Philosophy)
 
-## 작동 원리
+### 🚨 Zero Tolerance Data Integrity Policy (무관용 데이터 원칙)
+**이 원칙은 어떤 편의성보다 우선하며, 시스템이 절대로 어기면 안 되는 절대 규칙입니다.**
+1.  **NO Silent Corrections**: AI나 시스템은 사용자에게 알리지 않고 데이터를 임의로 수정, 병합, 삭제해서는 안 됩니다.
+2.  **NO Auto-Merging**: 명백해 보이는 중복이라도 시스템이 알아서 합쳐서는 안 됩니다. 반드시 오류(BLOCKER)를 발생시켜 사용자의 결정을 받아야 합니다.
+3.  **Mandatory Metadata**: 분석 대상 회사명과 발행일(기준일)이 식별되지 않으면 분석을 거부하고 사람의 확인(HITL)을 요청해야 합니다.
+4.  **Freshness Guarantee**: 발행일로부터 1년(365일)이 경과한 명부는 정합성 오류(STALE)로 처리하여 최신성 확인을 강제해야 합니다.
+5.  **Report & Halt**: 데이터의 무결성이 의심되는 모든 상황에서 시스템은 "해결"하려 들지 말고, 즉시 멈추고 "보고"해야 합니다.
 
-1. 사용자가 **대상 제휴코드** 입력 (예: `123456`)
-2. 제휴코드와 사업자번호가 포함된 **이미지 업로드**
-3. OpenAI가 이미지에서 해당 제휴코드를 찾아 **같은 행의 사업자번호 추출**
-4. 결과를 CSV로 생성하여 **이메일 발송**
+### 📅 Universal Identifier & Birthdate Policy (생년월일 추론 공통 규칙)
+**Fast Track 및 Multi-Agent 모드 공통 적용 (Current Base Year: 2026)**
+1.  **우선순위 1 (성별코드)**: 주민번호 뒷자리가 식별되면 그 첫 자리(1,2,5,6 vs 3,4,7,8)로 연도를 확정합니다.
+2.  **우선순위 2 (Rule of 100)**: 뒷자리가 없으면 앞 2자리(YY)를 보고 판단하되, **현재(2026년)보다 미래가 되지 않도록(Not Future-Dated)** 1900/2000년대를 결정합니다.
+    - 예: `85` -> 1985 (2085는 미래), `15` -> 2015 (과거)
 
-## 기술 스택
+### 7. 날짜 정규화 정책 (Date Standardization Policy)
+- **발행일 (Issue Date)**: 문서 전체의 기준이 되는 날짜(발행일, 기준일, 생성일, 작성일, **'ㅇㅇㅇ일 현재'**, 또는 **법인인감/도장 근처 날짜**)는 분석 결과의 **'발행일'** 필드로 통합하여 관리합니다.
+- **생년월일 (Birth Date)**: 개별 주주의 신원 정보인 생년월일은 주주 데이터의 **'식별번호'** 필드에 저장되며, 발행일과는 엄격히 구분됩니다.
+- **신선도 검증 (Staleness Check)**: 발행일이 현재 시점으로부터 **1년(365일)을 초과**한 경우, 데이터 실효성이 상실된 것으로 판단하여 오류를 발생시킵니다.
+- **구분 원칙**: 날짜가 **제목 아래, 문서 하단, 혹은 도장 날인 근처**에 있다면 발행일로 판정하며, 표(Table) 내부 주주 정보 행에 위치하면 생년월일로 판정합니다.
 
-- **Frontend**: SvelteKit 5, TypeScript
-- **Backend**: SvelteKit Server Routes
-- **Deployment**: Vercel
-- **LLM**: OpenAI GPT-4o-mini
-- **Email**: Resend
+### 8. 실소유자 판정 정책 (Beneficial Owner Policy)
+시스템은 다음 2단계 로직에 따라 실소유자를 판정하며, UI 및 결과에는 **"25% 이상"** 또는 **"(25% 미만)"** 두 가지 레이블링만 사용합니다.
 
-## 빠른 시작
+1.  **1단계 (25% 이상)**: 지분율이 25% 이상인 모든 주주를 추출합니다.
+2.  **2단계 (25% 미만 - 최대주주)**: 1단계에 해당하는 주주가 한 명도 없는 경우, 지분율이 가장 높은 주주 1인을 선정하여 **"최대주주 (25% 미만)"**로 독립 표기합니다.
+    *   *참고: 3단계(대표이사 등 고위경영진)는 현재 시스템 판단 범위에서 제외됩니다.*
 
-### 1. 의존성 설치
+- 실소유자는 문서 내에서 최대 **4명**까지만 존재할 수 있습니다 (지분 합계 100% 제약).
+- 시스템은 1위 주주뿐만 아니라 기준을 충족하는 모든 주주를 추출하여 보고합니다.
+- 적용: Fast Track 및 Multi-Agent 모드 공통 적용.
 
-```bash
-npm install
-```
+### 9. 무추론 원칙 (No Guessing Policy / Anti-Hallucination)
+데이터의 무결성을 위해 시스템은 부족한 정보를 임의로 채우거나 추론하지 않는 것을 원칙으로 합니다.
 
-### 2. 환경변수 설정
+- **날짜 데이터**: '2022.02'와 같이 '일(Day)' 정보가 없는 경우, 임의로 '2022-02-01'로 변환하지 않습니다. 이 경우 데이터 불완전으로 판정하여 **"알 수 없음"** 또는 **"부분적 정보"**로 리포팅하며, Validator에서 `BLOCKER`를 발생시킵니다.
+- **식별자 데이터**: 사업자번호, 법인번호, 주민번호 등의 자릿수가 법적 기준에 미달하는 경우(예: 사업자번호 9자리 추출), 임의로 0을 붙이거나 숫자를 지어내지 않습니다.
+- **철저한 검증**: 모든 날짜는 ISO-8601(YYYY-MM-DD) 형식을, 모든 식별번호는 각각의 고유 자릿수(BRN 10자, CRN/ID 13자)를 충족해야 정합성 검증을 통과할 수 있습니다.
 
-`.env` 파일을 생성하세요:
+### 1. Hybrid Reliability (AI + Code)
+금융/법률 데이터 처리를 위해 **"확률적 직관(AI)"**과 **"결정적 검증(Code)"**을 분리했습니다.
+- **AI Layer (Intuition)**: 비정형 이미지 해석, 문맥 파악, 오타 교정 제안, 성명 적합성 판단. (오판 가능성 인정)
+- **Code Layer (Verification)**: 100% 신뢰할 수 있는 수학적 검증, 데이터 무결성 강제, 계산 로직. (타협 없음)
 
-```env
-OPENAI_API_KEY=sk-xxxxxxxx
-OPENAI_MODEL=gpt-4o-mini
-RESEND_API_KEY=re_xxxxxxxx
-SENDER_EMAIL=noreply@yourdomain.com
-```
+### 2. Safety-First (Fail-Safe)
+데이터가 불확실할 경우 잘못된 결과를 내는 것보다 **'판단 보류'**를 우선합니다.
+- **HITL (Human-in-the-Loop)**: AI가 데이터를 임의로 수정했거나(성명 교정), 검증 규칙이 깨진 경우(합계 불일치) 즉시 프로세스를 잠그고(Block) 사람의 승인을 요구합니다.
 
-### 3. 개발 서버 실행
+### 3. Visual Consistency & Usability
+모든 분석 과정은 사용자가 이해하기 쉬운 **카드형 UI**와 **로그-결과 차트의 시각적 동기화(500px Matching)**를 통해 전달됩니다.
 
-```bash
-npm run dev
-```
+---
 
-### 4. 브라우저에서 접속
+## 🤖 에이전트 상세 명세 (Full Agent Specifications)
 
-http://localhost:5173
+시스템은 5단계의 파이프라인으로 구성되며, 각 에이전트는 단일 책임 원칙(SRP)에 따라 동작합니다.
 
-## 환경변수
+### 🚪 Step 1. Gatekeeper (문서 수문장)
+**"Is this document worth analyzing?"**
+불필요한 과금을 방지하고 시스템 리소스를 보호하는 첫 번째 필터입니다.
 
-| 변수명 | 필수 | 기본값 | 설명 |
-|--------|------|--------|------|
-| `OPENAI_API_KEY` | ✅ | - | OpenAI API 키 |
-| `OPENAI_MODEL` | ❌ | `gpt-4o-mini` | 사용할 OpenAI 모델 |
-| `RESEND_API_KEY` | ✅ | - | Resend API 키 |
-| `SENDER_EMAIL` | ✅ | - | 발신 이메일 주소 |
-| `AFFILIATE_CODE_REGEX` | ❌ | `^\d{6}$` | 제휴코드 검증 정규식 |
+- **Input**: 원본 이미지 (Base64)
+- **Logic**:
+  1.  **Document Classification**: 이미지의 시각적 특징(표, 인장, 제목 위치)을 분석하여 '주주명부'인지 판별합니다. (이력서, 영수증 등 거부)
+  2.  **Feasibility Check**: 분석에 필수적인 3대 요소(주주명, 식별번호, 지분정보)가 모두 존재하는지 스캔합니다.
+  3.  **Smart Routing**: 문서 복잡도에 따라 실행 전략을 결정합니다.
+      - *Low Complexity*: **FastExtractor** (단일 호출로 처리, 속도 최적화)
+      - *High Complexity*: **Multi-Agent Pipeline** (단계별 정밀 처리, 정확도 최적화)
 
-> 📧 수신자 이메일은 `kaura24@kbfg.com`으로 고정되어 있습니다.
+### 📄 Step 2. Extractor (데이터 추출기)
+**"Read exactly what you see."**
+이미지 픽셀을 텍스트 데이터로 변환하는 OCR 및 구조화 에이전트입니다.
 
-## API 엔드포인트
+- **Logic**:
+  1.  **Table parsing**: 테두리가 없거나 셀이 병합된 복잡한 표 구조를 시각적으로 해석하여 행/열을 매핑합니다.
+  2.  **Raw Extraction**: 이 단계에서는 데이터를 교정하지 않습니다. '홍청군'으로 적혀있으면 그대로 '홍청군'으로 추출합니다. 이는 원본 데이터의 추적 가능성(Traceability)을 보장하기 위함입니다.
+  3.  **Schema Validation**: 추출된 JSON이 시스템의 `Zod Schema`를 통과하는지 1차 검증합니다. (필수 필드 누락 방지)
 
-### GET /api/test-connection
+### 🔄 Step 3. Normalizer (표준화 및 심층 분석기)
+**"Transform Raw Data into System Intelligence."**
+가장 복잡하고 중요한 에이전트로, 단순 정규화를 넘어선 **지능형 분석**을 수행합니다.
 
-OpenAI API 연결 상태를 테스트합니다.
+#### 3.1. Numeric & Format Normalization (수치/서식 정규화)
+다양한 표기법을 연산 가능한 표준 포맷으로 통일합니다.
+- **Shares (주식수)**: `"10,000주"`, `"1만주"`, `"1,000"` → `10000` (Integer)
+- **Ratio (지분율)**: `"25.5%"`, `"0.255"`, `"25.5"` → `25.5` (Float, 단위 통일)
+- **Amount (금액)**: `"1억 5천만원"`, `"150,000,000원"` → `150000000` (Integer)
+- **Date**: `"2020.05.01"`, `"20년5월1일"` → `"2020-05-01"` (ISO 8601)
 
-### POST /api/process-once
+#### 3.2. Identifier Standardization (식별번호 표준화)
+식별번호의 패턴을 분석하여 타입을 확정합니다.
+- **INDIVIDUAL**: 주민등록번호 패턴(`\d{6}-\d{7}`) 감지 시, 개인정보 보호를 위해 **생년월일(BIRTH_DATE)**로 변환하여 저장합니다.
+- **CORPORATE**: 사업자등록번호(`\d{3}-\d{2}-\d{5}`) 또는 법인등록번호 패턴을 감지하여 타입을 태깅합니다.
 
-이미지에서 대상 제휴코드에 매핑된 사업자번호를 추출합니다.
+#### 3.3. Advanced Name Analysis (심층 성명 분석) [AI Intelligence]
+단순 오타 교정을 넘어, 인구통계학적/언어학적 지식을 활용해 이름의 진위 여부를 판단합니다.
+- **음운론적 적합성 (Phonetic)**: 소리 내어 읽었을 때 한국어 이름으로 자연스러운지 판단합니다. (예: '박딹' → ❌)
+- **어휘적 희소성 (Lexical Rarity)**: '청군', '흥청' 등 이름에 거의 쓰이지 않는 희귀 단어가 포함되었는지 통계적으로 검토합니다.
+  - *Action*: '홍청군' 감지 → '홍성준' 제안 또는 의심 태깅.
+- **인구통계학적 정합성 (Demographic)**: 식별번호에서 추출한 연령대/성별과 이름의 매칭 확률을 계산합니다. (예: 2020년생 '점순' → ⚠️)
 
-**Request**: `multipart/form-data`
-- `image`: 이미지 파일 (JPEG, PNG, WebP, GIF)
-- `targetCode`: 찾고자 하는 대상 제휴코드
+#### 3.4. Entity Classification (실체 분류)
+이름, 식별번호 형태, 문맥 신호(Signal)를 종합하여 주주가 **'개인(Individual)'**인지 **'법인(Corporate)'**인지 최종 판정합니다.
 
-**Response** (성공):
-```json
-{
-  "ok": true,
-  "affiliate_code": "123456",
-  "business_no": "123-45-67890",
-  "emailed": true,
-  "provider": "openai",
-  "request_id": "uuid"
-}
-```
+### ✅ Step 4. Validator (규칙 기반 검증기)
+**"Code never lies."**
+AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngine.ts`)
 
-## 프로젝트 구조
+- **Rule: E-NAME-001 (성명 안전장치)**: Normalizer가 남긴 `normalization_notes`에 "성명 교정"이나 "성명 의심"이 포함된 경우, **즉시 HITL(사람 확인)을 트리거합니다.** (BLOCKER Level)
+- **Rule: E-META-001/002 (필수 정보)**: 회사명 또는 발행일이 누락된 경우 즉시 중단합니다.
+- **Rule: E-META-003 (날짜 실효성)**: 발행일이 1년을 경과한 경우 BLOCKER를 발생시킵니다.
+- **Rule: E-CON-001 (3자 교차 검증)**: **"주식수와 지분율과 지분금액은 서로 모순될 수 없다"**는 원칙을 검증합니다. (주식수 비중 == 금액 비중 == 지분율) 이 셋 중 하나라도 어긋나면 즉시 중단합니다.
+- **Rule: E-SUM-001 (수치 무결성)**: 모든 주주의 주식수 합계가 문서 상단에 명시된 '총발행주식수'와 정확히 일치하는지 검증합니다.
+- **Rule: E-ID-002 (1:1 식별)**: 주주의 명수와 유효한 식별번호의 개수가 1:1로 대응되는지 확인하여 동명이인 혼동을 방지합니다.
 
-```
-src/
-├── lib/
-│   ├── client/
-│   │   └── imageShrink.ts     # 클라이언트 이미지 압축
-│   ├── email/
-│   │   └── resend.ts          # Resend 이메일 발송
-│   ├── extract/
-│   │   └── affiliateCode.ts   # 사업자번호 추출 로직
-│   ├── llm/
-│   │   └── openai.ts          # OpenAI API
-│   ├── output/
-│   │   └── csv.ts             # CSV 생성
-│   └── util/
-│       └── env.ts             # 환경변수 검증
-└── routes/
-    ├── +page.svelte           # 메인 UI
-    └── api/
-        ├── test-connection/
-        │   └── +server.ts     # 연결 테스트 API
-        └── process-once/
-            └── +server.ts     # 추출 API
-```
+### 📊 Step 5. Analyst (인사이트 및 리포팅)
+**"Actionable Data."**
+검증된 데이터를 사용자가 활용 가능한 형태로 가공합니다.
 
-## 배포
+- **25% Rule Algorithm**: 전체 지분율 중 25% 이상을 보유한 **실소유주(Beneficial Owner)**를 선별합니다.
+- **Sorting**: 지분율 내림차순(Desc) 정렬을 통해 주요 주주를 상단에 배치합니다.
+- **User Alerting**: 성명 교정이 발생한 주주명 옆에 **"(확인 필요)"** 배지를 부착하여 사용자의 주의를 환기시킵니다.
 
-### Vercel 배포
+---
 
-```bash
-# Vercel CLI 설치
-npm install -g vercel
+## 4. 📱 UI/UX 디자인 가이드
 
-# 배포
-vercel --prod
-```
+- **Split View System**: 좌측 로그 뷰어(과정)와 우측 결과 뷰어(결과)를 동시에 배치하여 투명성을 높였습니다.
+- **Matched Geometry**: 로그 카드의 너비와 결과 카드의 너비를 **500px로 정밀하게 일치**시켜, 시각적 안정감을 주고 모바일 가독성을 극대화했습니다.
+- **Card Metaphor**: 모든 정보 단위를 '카드'로 모듈화하여 정보의 위계를 명확히 했습니다.
 
-자세한 내용은 [RUNBOOK.md](./RUNBOOK.md)를 참조하세요.
+---
 
-## 라이선스
-
-MIT
+**Last Updated**: 2026-01-25
+**System Version**: 2.2 (Full Feature Documentation)
+**Maintainer**: JuJu Dev Team

@@ -1,3 +1,4 @@
+/** File: src/lib/output/excel.ts */
 /**
  * Excel 출력 모듈
  * - 인메모리 XLSX 생성
