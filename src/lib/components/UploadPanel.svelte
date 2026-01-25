@@ -8,6 +8,7 @@
 
   let files: FileList | null = $state(null);
   let uploading = $state(false);
+  let busyMode: "FAST" | "MULTI_AGENT" | null = $state(null);
   let error: string | null = $state(null);
   let dragOver = $state(false);
 
@@ -70,6 +71,7 @@
     if (!files || files.length === 0) return;
 
     uploading = true;
+    busyMode = mode;
     error = null;
 
     try {
@@ -94,6 +96,7 @@
       error = e instanceof Error ? e.message : "업로드 실패";
     } finally {
       uploading = false;
+      busyMode = null;
     }
   }
 
@@ -289,7 +292,7 @@
       disabled={uploading}
       class="analyze-btn fast-track"
     >
-      {#if uploading}
+      {#if busyMode === "FAST"}
         <div class="spinner"></div>
         <span>분석 시작 중...</span>
       {:else}
@@ -319,7 +322,7 @@
       disabled={uploading}
       class="analyze-btn multi-agent"
     >
-      {#if uploading}
+      {#if busyMode === "MULTI_AGENT"}
         <div class="spinner"></div>
         <span>분석 시작 중...</span>
       {:else}
