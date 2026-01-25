@@ -1,0 +1,13 @@
+# Vercel Ignore File
+# Bulky local data
+/uploads
+/data
+/temp
+/.svelte-kit
+/node_modules
+/build
+
+# Logs and accidental files
+*.log
+lint_output.txt
+svelte_check.log
