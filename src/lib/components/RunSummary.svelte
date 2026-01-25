@@ -370,6 +370,13 @@
         gap: 1.5rem;
     }
 
+    @media (max-width: 600px) {
+        .context-grid {
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+    }
+
     .context-item {
         display: flex;
         flex-direction: column;
@@ -584,6 +591,15 @@
         align-items: center;
         flex-wrap: wrap;
         gap: 0.5rem;
+        min-width: 0; /* Prevention of overflow */
+    }
+
+    @media (max-width: 480px) {
+        .shareholder-info {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 0.25rem;
+        }
     }
 
     .shareholder-item .name {

@@ -406,6 +406,13 @@
     transition: all 0.2s ease;
   }
 
+  @media (max-width: 480px) {
+    .upload-panel {
+      padding: 24px 16px;
+      gap: 16px;
+    }
+  }
+
   .upload-panel::before {
     content: "";
     position: absolute;
@@ -469,6 +476,12 @@
     display: flex;
     gap: 12px;
     width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    .button-group {
+      flex-direction: column;
+    }
   }
 
   .fluent-btn {
@@ -660,6 +673,12 @@
     display: flex;
     gap: 12px;
     width: 100%;
+  }
+
+  @media (max-width: 480px) {
+    .mode-selection {
+      flex-direction: column;
+    }
   }
 
   .mode-selection.hidden {
