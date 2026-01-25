@@ -299,8 +299,10 @@ export async function listPendingHITLPackets(): Promise<HITLPacket[]> {
 
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import { join, dirname } from 'path';
+import os from 'os';
 
-const UPLOAD_DIR = 'uploads';
+const UPLOAD_DIR = join(os.tmpdir(), 'juju-uploads');
+const LOG_DIR = join(os.tmpdir(), 'juju-logs');
 
 /**
  * 업로드된 파일 저장
@@ -347,7 +349,7 @@ export async function saveBase64Image(base64Data: string, mimeType: string): Pro
 
 import type { RunLogReport } from './agentLogger';
 
-const LOG_DIR = 'data/logs';
+// LOG_DIR is already defined above
 
 /**
  * 실행 로그 저장 (파일에 쓰기)
