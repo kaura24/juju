@@ -80,6 +80,7 @@
       const data = await response.json();
 
       status = data.run.status;
+      if (data.run.model) connectedModel = data.run.model;
 
       // Load existing logs to populate pipeline
       try {
@@ -281,37 +282,61 @@
     border-radius: 6px;
   }
 
-  /* Content Grid - Always Vertical (Logs Top, Summary Bottom) */
+  /* Content Grid - Adaptive: Horizontal on PC, Vertical on Mobile */
   .content-grid {
     display: flex;
     flex-direction: column;
-    gap: 1rem;
+    gap: 1.5rem;
     padding: 1rem;
-    height: calc(100vh - 60px);
+    height: calc(100vh - 64px);
     overflow: hidden;
   }
 
-  /* Logs section - fixed height at top */
+  @media (min-width: 1024px) {
+    .content-grid {
+      flex-direction: row;
+      padding: 1.5rem 2rem;
+      gap: 2rem;
+      max-width: 1600px;
+      margin: 0 auto;
+    }
+  }
+
+  /* Logs section */
   .left-panel {
-    flex: 0 0 50vh;
+    flex: 1; /* Take remaining space */
     display: flex;
     flex-direction: column;
     min-height: 0;
     overflow: hidden;
   }
 
-  /* Summary section - auto height at bottom */
+  @media (max-width: 1023px) {
+    .left-panel {
+      flex: 0 0 45vh; /* Fixed height on mobile at top */
+    }
+  }
+
+  /* Summary section */
   .right-panel {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     padding-right: 0.5rem;
-    padding-bottom: 4rem; /* Ensure bottom content is not cut off */
+    padding-bottom: 2rem;
 
-    /* Align with Log Viewer width (Agent Block is 500px) */
+    /* Default for mobile/narrow */
     width: 100%;
     max-width: 500px;
     margin: 0 auto;
+  }
+
+  @media (min-width: 1024px) {
+    .right-panel {
+      flex: 0 0 540px; /* Slightly wider for PC summary */
+      margin: 0;
+      max-width: none;
+    }
   }
 
   .right-panel::-webkit-scrollbar {
