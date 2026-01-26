@@ -73,6 +73,10 @@ export interface OrchestratorSummary {
 // 로그 저장소 (In-Memory)
 // ============================================
 import { saveRunLog, loadRunLog } from './storage';
+import { appendFile } from 'fs/promises';
+import { join } from 'path';
+
+const ERROR_LOG_PATH = join(process.cwd(), 'logs', 'server_error.log');
 
 // In-Memory cache (still useful for speed, but synced to disk)
 const runLogs = new Map<string, RunLogReport>();
@@ -127,7 +131,12 @@ export async function addAgentLog(
   data?: unknown,
   duration_ms?: number
 ): Promise<void> {
-  const report = runLogs.get(runId);
+  // 캐시 확인 및 디스크 로드
+  let report = runLogs.get(runId);
+  if (!report) {
+    report = (await loadRunLog(runId)) || undefined;
+    if (report) runLogs.set(runId, report);
+  }
   if (!report) return;
 
   const collection = report.agents.find(a => a.agent === agent && a.status === 'RUNNING');
@@ -148,8 +157,18 @@ export async function addAgentLog(
   // Emit real-time event
   emitAgentLogEntry(runId, entry);
 
-  // 비동기 저장 (await 안함 - 성능 향상)
+  // 비동기 저장
   saveRunLog(report).catch(e => console.error('Log save failed', e));
+
+  // Critical Error Logging (File System)
+  if (level === 'ERROR') {
+    try {
+      const errorMsg = `[${entry.timestamp}] [${runId}] [${agent}] [${action}] ${detail}\n`;
+      await appendFile(ERROR_LOG_PATH, errorMsg, 'utf-8');
+    } catch (err) {
+      console.error('Failed to write to server_error.log', err);
+    }
+  }
 }
 
 /**
@@ -161,7 +180,11 @@ export async function completeAgentLog(
   status: 'SUCCESS' | 'FAILED',
   summary: string
 ): Promise<void> {
-  const report = runLogs.get(runId);
+  let report = runLogs.get(runId);
+  if (!report) {
+    report = (await loadRunLog(runId)) || undefined;
+    if (report) runLogs.set(runId, report);
+  }
   if (!report) return;
 
   const collection = report.agents.find(a => a.agent === agent && a.status === 'RUNNING');
@@ -181,7 +204,11 @@ export async function completeRunLog(
   status: RunLogReport['status'],
   summary: OrchestratorSummary
 ): Promise<void> {
-  const report = runLogs.get(runId);
+  let report = runLogs.get(runId);
+  if (!report) {
+    report = (await loadRunLog(runId)) || undefined;
+    if (report) runLogs.set(runId, report);
+  }
   if (!report) return;
 
   report.end_time = new Date().toISOString();
@@ -194,9 +221,11 @@ export async function completeRunLog(
  * 실행 로그 조회
  */
 export async function getRunLog(runId: string): Promise<RunLogReport | undefined> {
+  // 캐시 먼저 확인
   const cached = runLogs.get(runId);
   if (cached) return cached;
 
+  // 디스크에서 로드 시도
   const loaded = await loadRunLog(runId);
   if (loaded) {
     runLogs.set(runId, loaded);

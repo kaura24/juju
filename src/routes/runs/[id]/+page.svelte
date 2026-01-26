@@ -219,13 +219,13 @@
 
   <!-- Content Grid -->
   <div class="content-grid">
-    <!-- Agent Pipeline Logs (Top on mobile, Left on desktop) -->
-    <section class="left-panel">
+    <!-- Agent Pipeline Logs (Top) -->
+    <section class="top-panel">
       <RunLogStream {logs} {activeAgent} runStatus={status} />
     </section>
 
-    <!-- Summary & Results (Bottom on mobile, Right on desktop) -->
-    <section class="right-panel">
+    <!-- Summary & Results (Bottom) -->
+    <section class="bottom-panel">
       <RunSummary
         {status}
         {finalAnswer}
@@ -240,7 +240,7 @@
   :global(body) {
     margin: 0;
     padding: 0;
-    background: #0f0f1a;
+    /* Background handled by layout.css var(--fluent-bg-solid) */
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     overflow: hidden;
   }
@@ -248,7 +248,8 @@
   .page-container {
     display: flex;
     flex-direction: column;
-    height: 100vh;
+    height: 100vh; /* Fallback */
+    height: 100dvh; /* Mobile friendly */
     width: 100vw;
     overflow: hidden;
   }
@@ -258,95 +259,76 @@
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1.5rem;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border-bottom: 1px solid #2d2d44;
+    background: rgba(20, 20, 30, 0.9); /* Dark glass */
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--fluent-border-default);
     flex-shrink: 0;
+    z-index: 10;
   }
 
   .home-btn {
     text-decoration: none;
-    color: #a0aec0;
+    color: var(--fluent-text-secondary);
     font-size: 0.9rem;
     font-weight: 500;
     transition: color 0.2s;
   }
 
   .home-btn:hover {
-    color: #4299e1;
+    color: var(--fluent-accent-light); /* Lighter blue on hover */
   }
 
   .run-id {
     font-family: "Courier New", monospace;
-    color: #718096;
+    color: var(--fluent-text-tertiary);
     font-size: 0.85rem;
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.05); /* Restore slight transparency */
+    border: 1px solid var(--fluent-border-subtle);
     padding: 4px 10px;
     border-radius: 6px;
   }
 
-  /* Content Grid - Adaptive: Horizontal on PC, Vertical on Mobile */
+  /* Content Grid - Vertical Stack */
   .content-grid {
     display: flex;
     flex-direction: column;
     gap: 1.5rem;
     padding: 1rem;
-    height: calc(100vh - 64px);
-    overflow: hidden;
+    flex: 1; /* Take remaining space correctly */
+    min-height: 0; /* Important for nested flex scrolling */
+    overflow-y: auto;
+    width: 100%;
+    box-sizing: border-box;
+    padding-bottom: 200px; /* Increased padding to ensure footer is visible */
   }
 
   @media (min-width: 1024px) {
     .content-grid {
-      flex-direction: row;
       padding: 1.5rem 2rem;
+      padding-bottom: 200px; /* Force restore bottom padding for PC */
       gap: 2rem;
-      max-width: 1600px;
+      max-width: 600px; /* Standardize to 600px even on PC for unified look */
       margin: 0 auto;
     }
   }
 
-  /* Logs section */
-  .left-panel {
-    flex: 1; /* Take remaining space */
+  /* Logs section (Top) */
+  .top-panel {
+    flex: 0 0 auto; /* Height by content */
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto;
+    min-height: 480px; /* Give logs some height */
     display: flex;
     flex-direction: column;
-    min-height: 0;
-    overflow: hidden;
   }
 
-  @media (max-width: 1023px) {
-    .left-panel {
-      flex: 0 0 45vh; /* Fixed height on mobile at top */
-    }
-  }
-
-  /* Summary section */
-  .right-panel {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    padding-right: 0.5rem;
-    padding-bottom: 2rem;
-
-    /* Default for mobile/narrow */
+  /* Summary section (Bottom) */
+  .bottom-panel {
+    flex: 0 0 auto; /* Don't grow, let it take natural height */
     width: 100%;
-    max-width: 500px;
+    max-width: 600px;
     margin: 0 auto;
-  }
-
-  @media (min-width: 1024px) {
-    .right-panel {
-      flex: 0 0 540px; /* Slightly wider for PC summary */
-      margin: 0;
-      max-width: none;
-    }
-  }
-
-  .right-panel::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .right-panel::-webkit-scrollbar-thumb {
-    background: #45475a;
-    border-radius: 3px;
+    padding-bottom: 2rem;
   }
 </style>

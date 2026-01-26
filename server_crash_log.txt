@@ -1,0 +1,188 @@
+
+> juju-shareholder-analyzer-v2@2.0.0 dev
+> vite dev
+
+
+  [32m[1mVITE[22m v7.3.0[39m  [2mready in [0m[1m12639[22m[2m[0m ms[22m
+
+  [32m??[39m  [1mLocal[22m:   [36mhttp://localhost:[1m5173[22m/[39m
+[2m  [32m??[39m  [1mNetwork[22m[2m: use [22m[1m--host[22m[2m to expose[22m
+[2m[32m  ??[39m[22m[2m  press [22m[1mh + enter[22m[2m to show help[22m
+
+[404] GET /favicon.svg
+?ㅼ쟾 11:35:51 [vite-plugin-svelte] src/lib/components/RunSummary.svelte:224:41 Using `on:click` to listen to the click event is deprecated. Use the event attribute `onclick` instead
+https://svelte.dev/e/event_directive_deprecated
+$inspect( null )
+[API-DEBUG] EXECUTE Request Body: { mode: 'FAST' }
+[Orchestrator-DEBUG] executeRun called with runId=09520ecf-d728-4555-a78f-c38aec4e2804, mode="FAST"
+[Orchestrator] Starting run 09520ecf-d728-4555-a78f-c38aec4e2804 in FAST mode
+?ㅼ쟾 11:36:05 [vite-plugin-svelte] src/lib/components/RunSummary.svelte:224:41 Using `on:click` to listen to the click event is deprecated. Use the event attribute `onclick` instead
+https://svelte.dev/e/event_directive_deprecated
+[Events] Stage FastExtractor for run 09520ecf-d728-4555-a78f-c38aec4e2804: 怨좎냽 異붿텧 諛?遺꾩꽍 以?[Orchestrator] Run 09520ecf-d728-4555-a78f-c38aec4e2804: Importing fast_extractor...
+[Orchestrator] Run 09520ecf-d728-4555-a78f-c38aec4e2804: fast_extractor imported.
+[Orchestrator] Run 09520ecf-d728-4555-a78f-c38aec4e2804: Calling runFastExtractor...
+[Agent] OpenAI API Key initialized. Default Model: gpt-4o, Fallback: gpt-4o
+[FastExtractor] Model: gpt-4o
+[FastExtractor] Sending request to AI model (Input Payload Size: 3602329 chars)...
+Avoid calling `fetch` eagerly during server-side rendering ??put your `fetch` calls inside `onMount` or a `load` function instead
+[API-DEBUG] EXECUTE Request Body: { mode: 'FAST' }
+[Orchestrator-DEBUG] executeRun called with runId=5c249a12-50ba-4b6f-aa71-d5cb4fc45910, mode="FAST"
+[Orchestrator] Starting run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910 in FAST mode
+[Events] Stage FastExtractor for run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910: 怨좎냽 異붿텧 諛?遺꾩꽍 以?[Orchestrator] Run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910: Importing fast_extractor...
+[Orchestrator] Run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910: fast_extractor imported.
+[Orchestrator] Run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910: Calling runFastExtractor...
+[FastExtractor] Model: gpt-4o
+[FastExtractor] Sending request to AI model (Input Payload Size: 3602329 chars)...
+No API key provided for OpenAI tracing exporter. Exports will be skipped
+[FastExtractor] AI response received in 21451ms
+[DEBUG][2026-01-26T02:36:29.991Z] [FastExtractor] Raw AI Output:
+"```json\n{\n  \"is_valid_shareholder_register\": true,\n  \"company_name\": \"(二??쒖쭊?몄븻?먯뒪\",\n  \"document_date\": \"2026-01-22\",\n  \"shareholders\": [\n    {\n      \"name\": \"諛뺤쥌援?",\n      \"shares\": 14000,\n      \"ratio\": 70,\n      \"identifier\": \"720723-1626116\",\n      \"entity_type\": \"INDIVIDUAL\"\n    },\n    {\n      \"name\": \"源?쒖젙\",\n      \"shares\": 6000,\n      \"ratio\": 30,\n      \"identifier\": \"780518-2051817\",\n      \"entity_type\": \"INDIVIDUAL\"\n    }\n  ],\n  \"over_25_percent_holders\": [\n    {\n      \"name\": \"諛뺤쥌援?",\n      \"ratio\": 70,\n      \"identifier\": \"720723-1626116\",\n      \"entity_type\": \"INDIVIDUAL\"\n    }\n  ]\n}\n```"
+[DEBUG][2026-01-26T02:36:29.992Z] [FastExtractor] Extracted JSON from Markdown block
+[DEBUG][2026-01-26T02:36:29.992Z] [FastExtractor] JSON Parse Success. Keys:
+[
+  "is_valid_shareholder_register",
+  "company_name",
+  "document_date",
+  "shareholders",
+  "over_25_percent_holders"
+]
+[FastExtractor] Zod Validation Failed!
+[DEBUG][2026-01-26T02:36:30.007Z] [FastExtractor] Zod Errors:
+{
+  "_errors": [],
+  "shareholders": {
+    "0": {
+      "_errors": [],
+      "amount": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "share_class": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "remarks": {
+        "_errors": [
+          "Required"
+        ]
+      }
+    },
+    "1": {
+      "_errors": [],
+      "amount": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "share_class": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "remarks": {
+        "_errors": [
+          "Required"
+        ]
+      }
+    },
+    "_errors": []
+  },
+  "document_info": {
+    "_errors": [
+      "Required"
+    ]
+  }
+}
+[FastExtractor] Schema failed but document marked valid? Proceeding with raw data (Risk).
+[DEBUG][2026-01-26T02:36:30.008Z] [FastExtractor] Final Parsed Object Summary:
+{
+  "is_valid": true,
+  "shareholders_count": 2,
+  "beneficial_owners_count": 1
+}
+[Orchestrator] Run 09520ecf-d728-4555-a78f-c38aec4e2804: Programmatic Validation Status = NEED_HITL
+[Events] HITL required for run 09520ecf-d728-4555-a78f-c38aec4e2804: MANUAL_CORRECTION
+[FastExtractor] AI response received in 21418ms
+[DEBUG][2026-01-26T02:36:30.603Z] [FastExtractor] Raw AI Output:
+"```json\n{\n  \"is_valid_shareholder_register\": true,\n  \"company_name\": \"?쒖쭊?댁븻?먯뒪\",\n  \"document_date\": \"2026-01-22\",\n  \"shareholders\": [\n    {\n      \"name\": \"諛뺤쥌援?",\n      \"shares\": 14000,\n      \"ratio\": 70.0,\n      \"identifier\": \"1972-07-23\",\n      \"entity_type\": \"INDIVIDUAL\"\n    },\n    {\n      \"name\": \"源?쒖젙\",\n      \"shares\": 6000,\n      \"ratio\": 30.0,\n      \"identifier\": \"1978-05-18\",\n      \"entity_type\": \"INDIVIDUAL\"\n    }\n  ],\n  \"over_25_percent_holders\": [\n    {\n      \"name\": \"諛뺤쥌援?",\n      \"ratio\": 70.0,\n      \"identifier\": \"1972-07-23\",\n      \"entity_type\": \"INDIVIDUAL\"\n    }\n  ],\n  \"remarks\": null,\n  \"normalization_notes\": null\n}\n```"
+[DEBUG][2026-01-26T02:36:30.604Z] [FastExtractor] Extracted JSON from Markdown block
+[DEBUG][2026-01-26T02:36:30.604Z] [FastExtractor] JSON Parse Success. Keys:
+[
+  "is_valid_shareholder_register",
+  "company_name",
+  "document_date",
+  "shareholders",
+  "over_25_percent_holders",
+  "remarks",
+  "normalization_notes"
+]
+[FastExtractor] Zod Validation Failed!
+[DEBUG][2026-01-26T02:36:30.606Z] [FastExtractor] Zod Errors:
+{
+  "_errors": [],
+  "shareholders": {
+    "0": {
+      "_errors": [],
+      "amount": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "share_class": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "remarks": {
+        "_errors": [
+          "Required"
+        ]
+      }
+    },
+    "1": {
+      "_errors": [],
+      "amount": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "share_class": {
+        "_errors": [
+          "Required"
+        ]
+      },
+      "remarks": {
+        "_errors": [
+          "Required"
+        ]
+      }
+    },
+    "_errors": []
+  },
+  "document_info": {
+    "_errors": [
+      "Required"
+    ]
+  }
+}
+[FastExtractor] Schema failed but document marked valid? Proceeding with raw data (Risk).
+[DEBUG][2026-01-26T02:36:30.607Z] [FastExtractor] Final Parsed Object Summary:
+{
+  "is_valid": true,
+  "shareholders_count": 2,
+  "beneficial_owners_count": 1
+}
+[Orchestrator] Run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910: Programmatic Validation Status = NEED_HITL
+[Events] HITL required for run 5c249a12-50ba-4b6f-aa71-d5cb4fc45910: MANUAL_CORRECTION
+No API key provided for OpenAI tracing exporter. Exports will be skipped
+
+[404] GET /pdf-icon.png
+[API-DEBUG] EXECUTE Request Body: { mode: 'MULTI_AGENT' }
+[Orchestrator-DEBUG] executeRun called with runId=06846dfb-c502-4527-ada0-5512918abe6e, mode="MULTI_AGENT"
+[Orchestrator] Starting run 06846dfb-c502-4527-ada0-5512918abe6e in MULTI_AGENT mode
+[Converter] Converting PDF: C:\Users\KBCARD\AppData\Local\Temp\juju-uploads\e63f8678-d1de-46df-b7f9-7895145585a9_二쇱＜紐낅?_Case_Current_2026-01-24T15-16-32.pdf
+Deprecated API usage: `canvasFactory`-instance option, please use `CanvasFactory` instead.
+[Converter] PDF loaded: 1 pages
+[Converter] Rendering page 1: { width: 1190.56, height: 1683.78 }

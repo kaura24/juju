@@ -15,17 +15,17 @@ import { ensureApiKey } from '../agents';
 // Helper: Debug Logger
 // ============================================
 function logDebug(message: string, data?: any) {
-    const ts = new Date().toISOString();
-    console.log(`[DEBUG][${ts}] ${message}`);
-    if (data) {
-        // Truncate huge data to avoid console flooding
-        const str = JSON.stringify(data, null, 2);
-        if (str.length > 2000) {
-            console.log(str.substring(0, 2000) + '... (truncated)');
-        } else {
-            console.log(str);
-        }
+  const ts = new Date().toISOString();
+  console.log(`[DEBUG][${ts}] ${message}`);
+  if (data) {
+    // Truncate huge data to avoid console flooding
+    const str = JSON.stringify(data, null, 2);
+    if (str.length > 2000) {
+      console.log(str.substring(0, 2000) + '... (truncated)');
+    } else {
+      console.log(str);
     }
+  }
 }
 
 // ============================================
@@ -33,70 +33,81 @@ function logDebug(message: string, data?: any) {
 // ============================================
 
 const FastExtractionSchema = z.object({
-    // 1. Gatekeeper Logic
-    is_valid_shareholder_register: z.boolean().describe("문서가 주주명부(또는 유사 문서)인지 여부"),
-    rejection_reason: z.string().optional().describe("주주명부가 아닌 경우 거부 사유"),
+  // 1. Gatekeeper Logic
+  is_valid_shareholder_register: z.boolean().describe("문서가 주주명부(또는 유사 문서)인지 여부"),
+  rejection_reason: z.string().optional().describe("주주명부가 아닌 경우 거부 사유"),
 
-    // 2. Extractor + Normalizer + Analyst Logic
-    shareholders: z.array(z.object({
-        name: z.string().describe("주주명 (정규화됨)"),
-        entity_type: z.enum(['INDIVIDUAL', 'CORPORATE', 'UNKNOWN']).describe("주주 유형"),
-        identifier: z.string().nullable().describe("주민번호/법인번호/사업자번호 (하이픈 포함 추천)"),
-        shares: z.number().nullable().describe("보유 주식수"),
-        ratio: z.number().nullable().describe("지분율 (%)"),
-        amount: z.number().nullable().describe("투자 금액 (원)"),
-        share_class: z.string().nullable().describe("주식 종류 (보통주/우선주 등)"),
-        remarks: z.string().nullable().describe("비고")
-    })).describe("추출된 주주 목록"),
+  // 2. Extractor + Normalizer + Analyst Logic
+  metadata_analysis_thought: z.string().optional().describe("회사명과 날짜를 추출하기 위한 분석 과정"),
 
-    over_25_percent_holders: z.array(z.object({
-        name: z.string(),
-        ratio: z.number(),
-        shares: z.number().nullable().optional().describe("보유 주식수"),
-        identifier: z.string().nullable().describe("주민번호/사업자번호"),
-        entity_type: z.enum(['INDIVIDUAL', 'CORPORATE', 'UNKNOWN']).describe("주주 유형")
-    })).describe("25% 이상 지분 보유자 목록"),
+  shareholders: z.array(z.object({
+    name: z.string().describe("주주명 (정규화됨)"),
+    entity_type: z.enum(['INDIVIDUAL', 'CORPORATE', 'UNKNOWN']).describe("주주 유형"),
+    identifier: z.string().nullable().describe("주민번호/법인번호/사업자번호 (하이픈 포함 추천)"),
+    shares: z.number().nullable().describe("보유 주식수"),
+    ratio: z.number().nullable().describe("지분율 (%)"),
+    amount: z.number().nullable().describe("투자 금액 (원)"),
+    share_class: z.string().nullable().describe("주식 종류 (보통주/우선주 등)"),
+    remarks: z.string().nullable().describe("비고")
+  })).describe("추출된 주주 목록"),
 
-    // Document Metadata
-    document_info: z.object({
-        company_name: z.string().nullable().describe("회사명 (주식회사 OO, (주)OO 등)"),
-        document_date: z.string().nullable().describe("발행일 (YYYY-MM-DD) - 기준일, 생성일, 'ㅇㅇㅇ일 현재' 등 포함"),
-        total_shares_declared: z.number().nullable().describe("문서에 명시된 총 주식수"),
-        total_capital_declared: z.number().nullable().describe("문서에 명시된 총 자본금")
-    }).describe("문서 메타데이터 (필수 추출 파트)")
+  over_25_percent_holders: z.array(z.object({
+    name: z.string(),
+    ratio: z.number(),
+    shares: z.number().nullable().optional().describe("보유 주식수"),
+    identifier: z.string().nullable().describe("주민번호/사업자번호"),
+    entity_type: z.enum(['INDIVIDUAL', 'CORPORATE', 'UNKNOWN']).describe("주주 유형")
+  })).describe("25% 이상 지분 보유자 목록"),
+
+  // Document Metadata
+  document_info: z.object({
+    company_name: z.string().nullable().describe("회사명 (주식회사 OO, (주)OO 등)"),
+    document_date: z.string().nullable().describe("발행일 (YYYY-MM-DD) - 기준일, 생성일, 'ㅇㅇㅇ일 현재' 등 포함"),
+    total_shares_declared: z.number().nullable().describe("문서에 명시된 총 주식수"),
+    total_capital_declared: z.number().nullable().describe("문서에 명시된 총 자본금")
+  }).describe("문서 메타데이터 (필수 추출 파트)")
 });
 
 type FastExtractionResult = z.infer<typeof FastExtractionSchema>;
 
 const INSTRUCTIONS = `
-당신은 한국 주주명부 고속 분석 전문가입니다.
-주어진 주주명부 이미지를 보고 **한 번에(Mono-Agent)** 다음 작업을 모두 수행하십시오.
+당신은 한국 주주명부 고속 분석 전문가입니다. 
+분석의 일관성을 위해 반드시 다음 **[사고 프로세스]**를 준수하여 분석을 수행하십시오.
 
-⚠️ **중요: 문서 유효성 판단 (Gatekeeper)**
-- 이 문서가 "주주명부" 또는 "주주 리스트"가 맞는지 판단하십시오.
-- **필수 확인 정보**: 
-  - **회사명**: 상단/하단/도장 등에서 '주식회사 OO' 또는 '(주)OO' 형식을 찾으십시오.
-  - **발행일 (Issue Date)**: 발행일, 기준일, 생성일, 작성일 등을 모두 찾아 하나로 통일하십시오. (없으면 null)
-- **통과 조건 (유연함)**: 주주명과 지분 정보(주식수 등)가 포함되어 있다면, 식별번호가 일부 가려져 있거나 누락되어도 **유효한 주주명부**로 인정하십시오.
-- **거부 조건**: 이력서, 영수증, 등기부등본 등 **아예 주주명부가 아닌 경우에만** 'is_valid_shareholder_register'를 false로 하십시오.
-- 식별번호(주민번호 등)가 없거나 가려져 있어도 **절대 거부하지 말고**, 해당 필드를 null로 두거나 복원하여 추출을 계속 진행하십시오. (후행 단계에서 검증합니다)
+### ⚠️ [분석 일관성 확보를 위한 사고 프로세스]
+AI는 종종 하단의 지분 리스트(테이블)에 압도되어 상단의 중요 메타데이터(회사명, 날짜)를 놓치는 경향이 있습니다. 이를 방지하기 위해 다음 순서로 사고하고 결과를 생성하십시오.
+
+**1단계: 메타데이터 전용 탐색 (Metadata First Scan)**
+- 이미지의 **상단 1/4 영역**과 **최하단 도장 영역**을 먼저 샅샅이 훑으십시오.
+- 문서 제목(예: "주주명부") 바로 위나 아래, 혹은 "주식회사 ○○"라고 크게 적힌 부분을 찾으십시오.
+- 하단 인감(도장) 옆에 있는 "○○주식회사 대표이사" 문구에서 회사명을 다시 한번 교차 검증하십시오.
+- **\`metadata_analysis_thought\`** 필드에 "회사명을 어디서 발견했는지(예: 상단 제목, 하단 도장 옆)"를 구체적으로 기술하십시오.
+
+**2단계: 주주 리스트와 대상 회사 분리**
+- 리스트 내부의 '법인 주주'는 분석 대상 회사가 아닙니다. 
+- 명부의 **'주체'**인 회사를 찾아야 합니다. "○○의 주주명부"라고 할 때 ○○이 \`company_name\`입니다.
+
+**3단계: 날짜 추출**
+- "202x년 x월 x일 현재" 또는 "기준일: 202x.xx.xx" 형식을 최우선으로 찾으십시오.
+
+---
+
+## 작업 정의 (Mono-Agent)
+주어진 주주명부 이미지를 보고 위 사고 프로세스에 따라 작업을 수행하십시오.
+
+⚠️ **문서 유효성 판단 (Gatekeeper)**
+- 이 문서가 "주주명부"가 맞는지 판단하십시오. 
+- **절대 거부 금지 규칙**: 주주 리스트(성명, 주식수 등)가 한 명이라도 보인다면, 회사명이나 날짜를 찾지 못했더라도 무조건 \`is_valid_shareholder_register: true\`로 설정하십시오.
+- 회사명/날짜가 없으면 \`document_info\`의 해당 필드를 null로 두십시오.
 
 ## 1. 정밀 데이터 추출 (Extraction)
-- **모두 주주의 세부 정보**를 빠짐없이 추출하십시오.
-- **문서 메타데이터 추출 (Document Context)**:
-  - \`company_name\` (대상 회사): 문서 상단 타이틀, 하단 법인인감, 또는 헤더/푸터에서만 찾으십시오.
-  - **⚠️ 경고**: 주주 리스트 내에 포함된 '법인 주주(Corporate Shareholder)'의 이름을 대상 회사명으로 오인하지 마십시오. 반드시 문서 전체의 제목이나 인감 근처의 발행 주체를 찾으십시오.
-  - \`document_date\` (발행일/기준일): **[가장 중요]** 문서에 명시된 모든 날짜 중 다음 우선순위로 추출하십시오.
-    1. **'기준일'**, **'작성일'**, **'발행일'** 키워드 근처의 날짜
-    2. **'ㅇㅇㅇ일 현재'** (As of Date) 형식의 날짜
-    3. **법인인감(도장)** 날인 근처에 적힌 날짜
-    4. 문서 **최하단** 또는 **제목 바로 아래**에 위치한 날짜
-  - ⚠️ **주의**: 상기 날짜들은 모두 **\`document_date\`** 하나로 통합하여 YYYY-MM-DD 형식으로 기록하십시오. 없으면 null로 두되, 반드시 찾아내려 노력하십시오.
+- **문서 메타데이터 추출 (Document Context) - [필수 목표]**:
+  - \`company_name\` (대상 회사): 상단 타이틀, 하단 법인인감, 헤더/푸터에서 추출.
+  - \`document_date\` (발행일/기준일): YYYY-MM-DD 형식. '기준일', '현재' 날짜를 최우선. 일자(Day)가 없으면 절대 추측하지 말고 null 처리(예: 2024.12 -> 2024-12-?? 또는 null).
 
-- **절대 주의: 날짜/식별번호 임의 추론 금지 (No Hallucination)**: 
-  - **날짜**: 문서에 '2024.12'처럼 일(Day) 정보가 없는 경우, 임의로 '2024-12-01'처럼 **'-01'을 붙이지 마십시오.** 정보가 부족하면 해당 필드를 null로 두거나, 불완전함을 명시하십시오. (예: '2024-12-??')
-  - **식별자**: 주민번호, 사업자번호, 법인번호의 자릿수가 부족하거나 가려진 경우, 임의로 숫자를 채워 넣거나 자릿수를 맞추기 위해 0을 패딩하지 마십시오. 보이는 부분만 추출하거나 null로 처리하십시오.
-- **절대 주의**: 문서에 날짜가 '2024.12.31 현재'라고 크게 적혀 있다면 이것은 **발행일**이지 주주의 생심월일이 아닙니다. 두 데이터의 위치와 문맥을 보고 엄격히 분리하십시오.
+- **주주 세부 정보 추출**:
+  - 성명, 주식수, 지분율(ratio), 식별번호(identifier)를 정규화 규칙에 따라 추출.
+  - 주민번호 발견 시 생년월일(YYYY-MM-DD)로 변환 (뒷자리 첫 숫자로 세대 판별).
 
 - **필수 추출 항목**: 
   - 성명 (name)
@@ -184,119 +195,121 @@ const INSTRUCTIONS = `
 `;
 
 export async function runFastExtractor(
-    images: { base64: string, mimeType: string }[]
+  images: { base64: string, mimeType: string }[]
 ): Promise<{
-    is_valid: boolean;
-    shareholders: any[];
-    rejection_reason?: string;
-    document_info?: any;
-    over_25_percent_holders: any[];
+  is_valid: boolean;
+  shareholders: any[];
+  rejection_reason?: string;
+  document_info?: any;
+  over_25_percent_holders: any[];
 }> {
 
-    const agent = new Agent({
-        name: 'Fast Extractor',
-        model: MODEL,
-        instructions: INSTRUCTIONS,
+  const agent = new Agent({
+    name: 'Fast Extractor',
+    model: MODEL,
+    instructions: INSTRUCTIONS,
+  });
+
+  // Ensure API Key is initialized
+  ensureApiKey();
+
+  const imageContents = images.map(img => ({
+    type: 'input_image' as const,
+    imageUrl: `data:${img.mimeType};base64,${img.base64}`
+  }));
+
+  const input = [
+    {
+      role: 'user' as const,
+      content: [
+        ...imageContents,
+        { type: 'input_text' as const, text: '이 주주명부 문서(모든 페이지)를 분석하여 데이터를 추출해줘. 반드시 JSON 형식으로만 응답하세요.' }
+      ]
+    }
+  ];
+
+  try {
+    console.log(`[FastExtractor] Model: ${MODEL}`);
+    console.log(`[FastExtractor] Sending request to AI model (Input Payload Size: ${JSON.stringify(input).length} chars)...`);
+
+    const startTime = Date.now();
+    const result = await run(agent, input);
+    const duration = Date.now() - startTime;
+    console.log(`[FastExtractor] AI response received in ${duration}ms`);
+
+    let jsonStr = result.finalOutput || '';
+    logDebug('[FastExtractor] Raw AI Output:', jsonStr);
+
+    // Robust JSON extraction from markdown if necessary
+    if (jsonStr.includes('```')) {
+      const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
+      if (match) {
+        jsonStr = match[1];
+        logDebug('[FastExtractor] Extracted JSON from Markdown block');
+      }
+    }
+    jsonStr = jsonStr.trim();
+
+    // Attempt Parse
+    let rawParsed: any;
+    try {
+      rawParsed = JSON.parse(jsonStr);
+      logDebug('[FastExtractor] JSON Parse Success. Keys:', Object.keys(rawParsed));
+    } catch (e) {
+      console.error('[FastExtractor] JSON Parse Failed:', e);
+      console.error('[FastExtractor] JSON String was:', jsonStr);
+      throw new Error('Failed to parse AI output as JSON');
+    }
+
+    const parseResult = FastExtractionSchema.safeParse(rawParsed);
+
+    if (!parseResult.success) {
+      console.error(`[FastExtractor] Zod Validation Failed!`);
+      logDebug('[FastExtractor] Zod Errors:', parseResult.error.format());
+
+      // Critical Fallback logic logging...
+      if (!rawParsed.is_valid_shareholder_register) {
+        console.warn('[FastExtractor] Document marked invalid by AI despite schema fail. Using rejection reason.');
+      } else {
+        console.warn('[FastExtractor] Schema failed but document marked valid? Proceeding with raw data (Risk).');
+      }
+    } else {
+      logDebug('[FastExtractor] Zod Validation Passed.');
+    }
+
+    const parsed = parseResult.success ? parseResult.data : (rawParsed as FastExtractionResult);
+    logDebug('[FastExtractor] Final Parsed Object Summary:', {
+      is_valid: parsed.is_valid_shareholder_register,
+      shareholders_count: parsed.shareholders?.length,
+      beneficial_owners_count: parsed.over_25_percent_holders?.length,
+      rejection_reason: parsed.rejection_reason
     });
 
-    // Ensure API Key is initialized
-    ensureApiKey();
-
-    const imageContents = images.map(img => ({
-        type: 'input_image' as const,
-        imageUrl: `data:${img.mimeType};base64,${img.base64}`
-    }));
-
-    const input = [
-        {
-            role: 'user' as const,
-            content: [
-                ...imageContents,
-                { type: 'input_text' as const, text: '이 주주명부 문서(모든 페이지)를 분석하여 데이터를 추출해줘. 반드시 JSON 형식으로만 응답하세요.' }
-            ]
-        }
-    ];
-
-    try {
-        console.log(`[FastExtractor] Model: ${MODEL}`);
-        console.log(`[FastExtractor] Sending request to AI model (Input Payload Size: ${JSON.stringify(input).length} chars)...`);
-
-        const startTime = Date.now();
-        const result = await run(agent, input);
-        const duration = Date.now() - startTime;
-        console.log(`[FastExtractor] AI response received in ${duration}ms`);
-
-        let jsonStr = result.finalOutput || '';
-        logDebug('[FastExtractor] Raw AI Output:', jsonStr);
-
-        // Robust JSON extraction from markdown if necessary
-        if (jsonStr.includes('```')) {
-            const match = jsonStr.match(/```(?:json)?\s*([\s\S]*?)```/);
-            if (match) {
-                jsonStr = match[1];
-                logDebug('[FastExtractor] Extracted JSON from Markdown block');
-            }
-        }
-        jsonStr = jsonStr.trim();
-
-        // Attempt Parse
-        let rawParsed: any;
-        try {
-            rawParsed = JSON.parse(jsonStr);
-            logDebug('[FastExtractor] JSON Parse Success. Keys:', Object.keys(rawParsed));
-        } catch (e) {
-            console.error('[FastExtractor] JSON Parse Failed:', e);
-            console.error('[FastExtractor] JSON String was:', jsonStr);
-            throw new Error('Failed to parse AI output as JSON');
-        }
-
-        const parseResult = FastExtractionSchema.safeParse(rawParsed);
-
-        if (!parseResult.success) {
-            console.error(`[FastExtractor] Zod Validation Failed!`);
-            logDebug('[FastExtractor] Zod Errors:', parseResult.error.format());
-
-            // Critical Fallback logic logging...
-            if (!rawParsed.is_valid_shareholder_register) {
-                console.warn('[FastExtractor] Document marked invalid by AI despite schema fail. Using rejection reason.');
-            } else {
-                console.warn('[FastExtractor] Schema failed but document marked valid? Proceeding with raw data (Risk).');
-            }
-        } else {
-            logDebug('[FastExtractor] Zod Validation Passed.');
-        }
-
-        const parsed = parseResult.success ? parseResult.data : (rawParsed as FastExtractionResult);
-        logDebug('[FastExtractor] Final Parsed Object Summary:', {
-            is_valid: parsed.is_valid_shareholder_register,
-            shareholders_count: parsed.shareholders?.length,
-            beneficial_owners_count: parsed.over_25_percent_holders?.length,
-            rejection_reason: parsed.rejection_reason
-        });
-
-        if (!parsed.is_valid_shareholder_register) {
-            console.warn(`[FastExtractor] Document Rejected: ${parsed.rejection_reason}`);
-            return {
-                is_valid: false,
-                shareholders: [],
-                rejection_reason: parsed.rejection_reason || 'AI provided no rejection reason',
-                over_25_percent_holders: []
-            };
-        }
-
-        // Convert to compatible format
-        return {
-            is_valid: true,
-            shareholders: parsed.shareholders || [],
-            document_info: parsed.document_info,
-            over_25_percent_holders: parsed.over_25_percent_holders || []
-        };
-
-    } catch (err) {
-        console.error('[FastExtractor] CRITICAL ERROR:', err);
-        if (err instanceof Error) {
-            console.error('[FastExtractor] Stack Trace:', err.stack);
-        }
-        throw err;
+    // Only reject if the AI explicitly said it's invalid (false). 
+    // If it's missing (undefined) or true, we proceed.
+    if (parsed.is_valid_shareholder_register === false) {
+      console.warn(`[FastExtractor] Document Rejected: ${parsed.rejection_reason}`);
+      return {
+        is_valid: false,
+        shareholders: [],
+        rejection_reason: parsed.rejection_reason || 'AI provided no rejection reason',
+        over_25_percent_holders: []
+      };
     }
+
+    // Convert to compatible format
+    return {
+      is_valid: true,
+      shareholders: parsed.shareholders || [],
+      document_info: parsed.document_info,
+      over_25_percent_holders: parsed.over_25_percent_holders || []
+    };
+
+  } catch (err) {
+    console.error('[FastExtractor] CRITICAL ERROR:', err);
+    if (err instanceof Error) {
+      console.error('[FastExtractor] Stack Trace:', err.stack);
+    }
+    throw err;
+  }
 }

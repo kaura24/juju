@@ -103,15 +103,40 @@ export async function initializeOrchestrator(): Promise<void> {
   if (isInitialized) return;
 
   const { cleanupRunningSessions } = await import('./storage');
-  const cleaned = await cleanupRunningSessions();
-  if (cleaned > 0) {
-    console.log(`[Orchestrator] Startup cleanup: ${cleaned} orphaned sessions terminated`);
+  const cleanedCount = await cleanupRunningSessions();
+  if (cleanedCount > 0) {
+    console.log(`[Orchestrator] Cleaned up ${cleanedCount} stale running sessions on startup.`);
+  }
+
+  // Global error handlers to catch "King" errors before process dies
+  if (!process.listenerCount('uncaughtException')) {
+    process.on('uncaughtException', (err) => {
+      console.error('[CRITICAL] Uncaught Exception:', err.message, err.stack);
+    });
+  }
+  if (!process.listenerCount('unhandledRejection')) {
+    process.on('unhandledRejection', (reason) => {
+      console.error('[CRITICAL] Unhandled Rejection:', reason);
+    });
   }
 
   isInitialized = true;
 }
 
+// ============================================
+// Idempotency & Concurrency Management
+// ============================================
+
+const runLocks = new Set<string>();
+
 export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = 'MULTI_AGENT'): Promise<void> {
+  // 멱등성 보장: 이미 실행 중이면 중복 실행 방지
+  if (runLocks.has(runId)) {
+    console.warn(`[Orchestrator] Run ${runId} is already being processed. Shifting request.`);
+    return;
+  }
+
+  runLocks.add(runId);
   const startTime = Date.now();
   let currentStage: string = 'INIT';
   const completedStages: string[] = [];
@@ -121,19 +146,21 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     // Ensure initialization on first run
     await initializeOrchestrator();
 
+    console.log(`[Orchestrator-DEBUG] executeRun called with runId=${runId}, mode="${mode}"`);
     console.log(`[Orchestrator] Starting run ${runId} in ${mode} mode`);
 
-    // 1. Initial Logging
+    // 1. Initial Logging (기존 로그 덮어쓰기 - 재시도 시 일관성 유지)
     await initRunLog(runId);
     await startAgentLog(runId, 'Orchestrator');
-    await addAgentLog(runId, 'Orchestrator', 'INFO', `실행 시작(${mode})`, `${mode} 모드로 분석을 시작합니다`);
+    await addAgentLog(runId, 'Orchestrator', 'INFO', `실행 시작(${mode})`, `${mode} 모드로 분석을 시작합니다 (멱등적 실행)`);
+
     const run = await getRun(runId);
     if (!run || run.files.length === 0) throw new Error('No files to process');
 
     const { prepareImagesForAnalysis } = await import('./services/converter');
     const images = await prepareImagesForAnalysis(run.files[0]);
 
-    if (images.length === 0) throw new Error('No images extracted from files');
+    if (images.length === 0) throw new Error('No images extracted from files or file is corrupted');
 
     let normalizedDoc: NormalizedDoc | null = null;
     let extractionCountVal = 0;
@@ -511,6 +538,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
   } finally {
     // Always clear cancellation flag
     clearCancellation(runId);
+    runLocks.delete(runId);
   }
 }
 

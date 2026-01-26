@@ -8,7 +8,7 @@
 		"node": ">=20.0.0"
 	},
 	"scripts": {
-		"dev": "vite dev",
+		"dev": "vite dev --open",
 		"build": "vite build",
 		"preview": "vite preview",
 		"prepare": "svelte-kit sync || echo ''",
@@ -18,16 +18,16 @@
 		"check-models": "node scripts/check-models.js"
 	},
 	"dependencies": {
+		"@napi-rs/canvas": "^0.1.65",
 		"@openai/agents": "^0.4.1",
 		"dotenv": "^17.2.3",
 		"openai": "^4.77.0",
-		"pdfjs-dist": "^4.8.69",
+		"pdfjs-dist": "^3.11.174",
 		"resend": "^4.0.0",
 		"utif": "^3.1.0",
 		"uuid": "^11.0.0",
 		"xlsx": "^0.18.5",
-		"zod": "^3.25.67",
-		"@napi-rs/canvas": "^0.1.65"
+		"zod": "^3.25.67"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.4.0",

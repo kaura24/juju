@@ -4,43 +4,52 @@
  * ============================================ */
 
 :root {
-  /* Background Colors */
-  --fluent-bg-solid: #1c1c1c;
-  --fluent-bg-layer: #2d2d2d;
-  --fluent-bg-card: rgba(45, 45, 45, 0.7);
-  --fluent-bg-acrylic: rgba(32, 32, 32, 0.85);
-  --fluent-bg-smoke: rgba(0, 0, 0, 0.3);
+  /* Background Colors - Microsoft Fluent Light v4.0 */
+  --fluent-bg-solid: #f3f3f3; /* App Background */
+  --fluent-bg-layer: #ffffff; /* Card/Content Background */
+  --fluent-bg-card: #ffffff;
+  --fluent-bg-acrylic: rgba(255, 255, 255, 0.95);
+  --fluent-bg-smoke: rgba(0, 0, 0, 0.04);
   
   /* Text Colors */
-  --fluent-text-primary: #ffffff;
-  --fluent-text-secondary: rgba(255, 255, 255, 0.78);
-  --fluent-text-tertiary: rgba(255, 255, 255, 0.54);
-  --fluent-text-disabled: rgba(255, 255, 255, 0.36);
+  --fluent-text-primary: #202020; /* Nearly Black */
+  --fluent-text-secondary: #606060; /* Medium Grey */
+  --fluent-text-tertiary: #989898;
+  --fluent-text-disabled: #bdc3c7;
   
   /* Accent Colors */
-  --fluent-accent: #0078d4;
-  --fluent-accent-light: #60cdff;
-  --fluent-accent-dark: #004c87;
+  --fluent-accent: #2563eb; /* Tech Blue (Balanced) */
+  --fluent-accent-light: #60a5fa;
+  --fluent-accent-dark: #1e40af;
+
+  /* Productivity Gradients (v4.2) */
+  /* Primary: Professional SaaS Blue - Clarity & Focus */
+  --btn-primary-bg: linear-gradient(180deg, #3b82f6 0%, #2563eb 100%); 
+  --btn-primary-border: #2563eb;
   
-  /* Semantic Colors */
-  --fluent-success: #0f7b0f;
-  --fluent-warning: #9d5d00;
-  --fluent-error: #c42b1c;
-  --fluent-info: #0078d4;
+  /* Secondary: Neutral Slate - Subtle & Clean */
+  --btn-noir-bg: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  --btn-noir-border: #cbd5e1;
+  --btn-noir-text: #475569;
   
+  --btn-danger-bg: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  --btn-danger-border: #dc2626;
+  
+  /* Softer, Spread Shadow for "Lifted" feel without heavy depth */
+  --btn-3d-shadow: 0 1px 2px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0, 0, 0, 0.1); 
+  --btn-3d-hover-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+
   /* Border & Divider */
-  --fluent-border-subtle: rgba(255, 255, 255, 0.0605);
-  --fluent-border-default: rgba(255, 255, 255, 0.0837);
-  --fluent-border-strong: rgba(255, 255, 255, 0.1581);
-  --fluent-divider: rgba(255, 255, 255, 0.0837);
+  --fluent-border-subtle: #e5e5e5;
+  --fluent-border-default: #d1d1d1; /* Input borders */
+  --fluent-border-strong: #8a8886;
+  --fluent-divider: #e5e5e5;
   
   /* Elevation / Shadow */
-  --fluent-shadow-2: 0 2px 4px rgba(0, 0, 0, 0.14);
-  --fluent-shadow-4: 0 4px 8px rgba(0, 0, 0, 0.14);
+  --fluent-shadow-2: 0 2px 4px rgba(0, 0, 0, 0.05);
+  --fluent-shadow-4: 0 4px 8px rgba(0, 0, 0, 0.1);
   --fluent-shadow-8: 0 8px 16px rgba(0, 0, 0, 0.14);
-  --fluent-shadow-16: 0 16px 32px rgba(0, 0, 0, 0.14);
-  --fluent-shadow-28: 0 28px 64px rgba(0, 0, 0, 0.24);
-  --fluent-shadow-64: 0 64px 128px rgba(0, 0, 0, 0.32);
+  --fluent-shadow-16: 0 16px 32px rgba(0, 0, 0, 0.2);
   
   /* Typography */
   --fluent-font-family: 'Segoe UI Variable', 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Noto Sans KR', sans-serif;
@@ -56,7 +65,7 @@
   
   /* Border Radius */
   --fluent-radius-s: 4px;
-  --fluent-radius-m: 6px;
+  --fluent-radius-m: 4px; /* Flatter radius for Office feel */
   --fluent-radius-l: 8px;
   --fluent-radius-xl: 12px;
   

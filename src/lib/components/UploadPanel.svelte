@@ -11,6 +11,8 @@
   let busyMode: "FAST" | "MULTI_AGENT" | null = $state(null);
   let error: string | null = $state(null);
   let dragOver = $state(false);
+  let agentsReady = $state(false); // Track if images are processed and ready
+  let loadingPreviews = $state(false);
 
   // 파일 미리보기
   let previews: string[] = $state([]);
@@ -19,20 +21,72 @@
   let cameraInput: HTMLInputElement;
   let fileInput: HTMLInputElement;
 
+  // Mode Selection Node
+  let modeSelectionNode: HTMLDivElement;
+
   $effect(() => {
-    if (files) {
+    if (files && files.length > 0) {
+      loadingPreviews = true;
+      agentsReady = false;
       const newPreviews: string[] = [];
+      let loadedCount = 0;
+
       for (const file of files) {
         if (file.type.startsWith("image/")) {
           const url = URL.createObjectURL(file);
           newPreviews.push(url);
-        } else if (file.type === "application/pdf") {
-          // PDF는 아이콘이나 썸네일 대신 기본 이미지를 쓰거나 일단 스킵 (나중에 PDF 썸네일 로직 추가 가능)
-          newPreviews.push("/pdf-icon.png"); // placeholder or logic to skip
+
+          // Verify image is actually loadable
+          const img = new Image();
+          img.onload = () => {
+            loadedCount++;
+            if (loadedCount === files!.length) {
+              agentsReady = true;
+              loadingPreviews = false;
+              // Auto-scroll to buttons when ready
+              setTimeout(() => {
+                modeSelectionNode?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+              }, 300); // Increased delay slightly to ensure DOM render
+            }
+          };
+          img.onerror = () => {
+            loadedCount++;
+            if (loadedCount === files!.length) {
+              agentsReady = true;
+              loadingPreviews = false;
+              setTimeout(() => {
+                modeSelectionNode?.scrollIntoView({
+                  behavior: "smooth",
+                  block: "center",
+                });
+              }, 300);
+            }
+          };
+          img.src = url;
         } else {
           newPreviews.push("/file-icon.png");
+          loadedCount++;
+          // Non-image files also trigger ready check immediately
+          if (loadedCount === files!.length) {
+            agentsReady = true;
+            loadingPreviews = false;
+            setTimeout(() => {
+              modeSelectionNode?.scrollIntoView({
+                behavior: "smooth",
+                block: "center",
+              });
+            }, 300);
+          }
         }
       }
+
+      // Handle case where loop finishes (synchronous parts) but images might be async
+      // For non-images mixed or purely non-images, handled above.
+      // If loop is empty (shouldn't happen due to if check), do nothing.
+
       previews = newPreviews;
 
       // Cleanup
@@ -41,6 +95,10 @@
           URL.revokeObjectURL(url);
         }
       };
+    } else {
+      previews = [];
+      agentsReady = false;
+      loadingPreviews = false;
     }
   });
 
@@ -174,68 +232,44 @@
     <p class="subtitle">이미지 또는 PDF 파일을 업로드하세요</p>
   </div>
 
-  <!-- 숨겨진 input들 -->
-  <input
-    type="file"
-    accept="image/*"
-    capture="environment"
-    bind:this={cameraInput}
-    onchange={handleFileChange}
-    style="display: none;"
-  />
-  <input
-    type="file"
-    accept="image/*,application/pdf,.tif,.tiff"
-    multiple
-    bind:this={fileInput}
-    onchange={handleFileChange}
-    style="display: none;"
-  />
-
-  <!-- 버튼 그룹 -->
-  <div class="button-group">
-    <button class="fluent-btn camera-btn" onclick={handleCameraClick}>
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
+  <!-- File Input Section with Guidance -->
+  <div class="file-section">
+    <div class="input-guidance">
+      <label class="input-label" for="file-upload-input"
+        >주주명부 파일 업로드</label
       >
-        <path
-          d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-        <circle
-          cx="12"
-          cy="13"
-          r="4"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-      <span>카메라 촬영</span>
-    </button>
+      <span class="helper-text">PDF, JPG, TIFF 파일을 지원합니다.</span>
+    </div>
 
-    <button class="fluent-btn file-btn" onclick={handleFileClick}>
-      <svg
-        width="24"
-        height="24"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-      >
-        <path
-          d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-        />
-      </svg>
-      <span>파일 선택</span>
-    </button>
+    <!-- Hidden Inputs -->
+    <input
+      id="file-upload-input"
+      bind:this={fileInput}
+      type="file"
+      accept=".pdf,.jpg,.jpeg,.tif,.tiff"
+      multiple
+      onchange={handleFileChange}
+      style="display: none;"
+    />
+    <input
+      bind:this={cameraInput}
+      type="file"
+      accept="image/*"
+      capture="environment"
+      onchange={handleFileChange}
+      style="display: none;"
+    />
+
+    <div class="input-actions-row">
+      <button class="fluent-btn" onclick={handleFileClick}>
+        <span class="icon">📂</span>
+        <span>파일 선택</span>
+      </button>
+      <button class="fluent-btn camera-btn" onclick={handleCameraClick}>
+        <span class="icon">📸</span>
+        <span>카메라 촬영</span>
+      </button>
+    </div>
   </div>
 
   <!-- 드래그 영역 안내 -->
@@ -285,66 +319,49 @@
     </div>
   {/if}
 
-  <!-- 분석 모드 선택 버튼 -->
-  <div class="mode-selection" class:hidden={!files || files.length === 0}>
-    <button
-      onclick={() => handleUpload("FAST")}
-      disabled={uploading}
-      class="analyze-btn fast-track"
-    >
-      {#if busyMode === "FAST"}
+  <!-- Analysis Mode Selection with Hierarchy -->
+  <div
+    class="mode-selection"
+    class:hidden={!files || files.length === 0}
+    bind:this={modeSelectionNode}
+  >
+    {#if uploading}
+      <!-- Feedback State: Loading -->
+      <div class="loading-state">
         <div class="spinner"></div>
-        <span>분석 시작 중...</span>
-      {:else}
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <polygon
-            points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          />
-        </svg>
-        <div class="btn-text">
-          <span class="main-text">Fast Track</span>
-          <span class="sub-text">빠른 분석 (10초 이내)</span>
-        </div>
-      {/if}
-    </button>
+        <span>분석 중입니다...</span>
+      </div>
+    {:else}
+      <!-- Secondary Action: Reset -->
+      <button class="btn-secondary" onclick={clearAll}> 초기화 </button>
 
-    <button
-      onclick={() => handleUpload("MULTI_AGENT")}
-      disabled={uploading}
-      class="analyze-btn multi-agent"
-    >
-      {#if busyMode === "MULTI_AGENT"}
-        <div class="spinner"></div>
-        <span>분석 시작 중...</span>
-      {:else}
-        <svg
-          width="24"
-          height="24"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-          <circle cx="9" cy="7" r="4"></circle>
-          <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
-          <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
-        </svg>
+      <!-- Primary Actions -->
+      <button
+        onclick={() => handleUpload("FAST")}
+        disabled={!agentsReady}
+        class="analyze-btn fast-track"
+        title="빠른 분석 (10초 이내)"
+      >
+        <span class="btn-icon">⚡</span>
         <div class="btn-text">
-          <span class="main-text">Multi-Agent</span>
-          <span class="sub-text">정밀 분석 (단계별 검증)</span>
+          <span class="main">빠른 분석</span>
+          <span class="sub">Fast Track</span>
         </div>
-      {/if}
-    </button>
+      </button>
+
+      <button
+        onclick={() => handleUpload("MULTI_AGENT")}
+        disabled={!agentsReady}
+        class="analyze-btn multi-agent"
+        title="정밀 분석 (단계별 검증)"
+      >
+        <span class="btn-icon">🤖</span>
+        <div class="btn-text">
+          <span class="main">심층 분석</span>
+          <span class="sub">Multi-Agent</span>
+        </div>
+      </button>
+    {/if}
   </div>
 
   {#if error}
@@ -369,71 +386,30 @@
 <style>
   /* Fluent Design System Variables */
   .upload-panel {
-    --fluent-bg: rgba(32, 32, 32, 0.85);
-    --fluent-bg-hover: rgba(45, 45, 45, 0.9);
-    --fluent-border: rgba(255, 255, 255, 0.08);
-    --fluent-border-hover: rgba(255, 255, 255, 0.15);
-    --fluent-accent: #0078d4;
-    --fluent-accent-hover: #1a86d9;
-    --fluent-accent-secondary: #60cdff;
-    --fluent-text: #ffffff;
-    --fluent-text-secondary: rgba(255, 255, 255, 0.7);
-    --fluent-text-tertiary: rgba(255, 255, 255, 0.5);
-    --fluent-danger: #ff6b6b;
-    --fluent-success: #4cd964;
-    --fluent-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-    --fluent-shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.5);
-
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 24px;
     padding: 40px 32px;
     max-width: 560px;
     margin: 0 auto;
 
-    /* Acrylic Material */
-    background: var(--fluent-bg);
-    backdrop-filter: blur(40px) saturate(150%);
-    -webkit-backdrop-filter: blur(40px) saturate(150%);
+    /* Fluent Light Card */
+    background: var(--fluent-bg-layer); /* White */
+    border: 1px solid var(--fluent-border-subtle);
+    border-radius: 8px; /* Classic Office Radius */
+    box-shadow: var(--fluent-shadow-8);
 
-    /* Border & Shadow */
-    border: 1px solid var(--fluent-border);
-    border-radius: 8px;
-    box-shadow: var(--fluent-shadow);
-
-    /* Subtle noise texture */
     position: relative;
     overflow: hidden;
-
     transition: all 0.2s ease;
   }
 
-  @media (max-width: 480px) {
-    .upload-panel {
-      padding: 24px 16px;
-      gap: 16px;
-    }
-  }
-
+  /* Remove noise/gradient overlay */
   .upload-panel::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(
-      135deg,
-      rgba(255, 255, 255, 0.03) 0%,
-      transparent 50%
-    );
-    pointer-events: none;
+    display: none;
   }
 
   .upload-panel.drag-over {
+    background: #f0f8ff; /* Lightest Blue */
     border-color: var(--fluent-accent);
-    box-shadow:
-      var(--fluent-shadow-lg),
-      0 0 0 1px var(--fluent-accent);
-    transform: scale(1.01);
+    box-shadow: 0 0 0 2px var(--fluent-accent);
   }
 
   /* Header */
@@ -443,28 +419,25 @@
     flex-direction: column;
     align-items: center;
     gap: 12px;
+    margin-bottom: 24px;
   }
 
   .icon-container {
-    width: 72px;
-    height: 72px;
+    width: 64px;
+    height: 64px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(
-      135deg,
-      var(--fluent-accent),
-      var(--fluent-accent-secondary)
-    );
-    border-radius: 16px;
-    color: white;
+    background: #eff6fc; /* Light Blue tint */
+    border-radius: 50%; /* Circle icon generic to Office */
+    color: var(--fluent-accent);
   }
 
   h2 {
     margin: 0;
     font-size: 24px;
-    font-weight: 600;
-    color: var(--fluent-text);
+    font-weight: 700;
+    color: var(--fluent-text-primary);
     letter-spacing: -0.02em;
   }
 
@@ -472,19 +445,6 @@
     margin: 0;
     font-size: 14px;
     color: var(--fluent-text-secondary);
-  }
-
-  /* Button Group */
-  .button-group {
-    display: flex;
-    gap: 12px;
-    width: 100%;
-  }
-
-  @media (max-width: 480px) {
-    .button-group {
-      flex-direction: column;
-    }
   }
 
   .fluent-btn {
@@ -495,21 +455,29 @@
     gap: 10px;
     padding: 14px 20px;
 
-    background: var(--fluent-bg-hover);
-    border: 1px solid var(--fluent-border);
-    border-radius: 6px;
+    /* Jewel-tone Green 3D for Input Actions */
+    background: var(--btn-success-bg);
+    border: 1px solid var(--btn-success-border);
+    border-radius: 12px;
 
-    color: var(--fluent-text);
+    color: white;
     font-size: 14px;
-    font-weight: 500;
+    font-weight: 700; /* Bolder text */
     cursor: pointer;
+    box-shadow: var(--btn-3d-shadow);
 
-    transition: all 0.15s ease;
+    transition: all 0.2s ease;
   }
 
   .fluent-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-    border-color: var(--fluent-border-hover);
+    box-shadow: var(--btn-3d-hover-shadow);
+    filter: brightness(1.1);
+    transform: translateY(-2px);
+  }
+
+  .fluent-btn:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
   }
 
   .fluent-btn:active {
@@ -521,20 +489,17 @@
     border-color: var(--fluent-accent);
   }
 
-  .file-btn:hover {
-    border-color: var(--fluent-accent-secondary);
-  }
-
   /* Drop Hint */
   .drop-hint {
     display: flex;
     align-items: center;
     gap: 8px;
     padding: 12px 20px;
-    background: rgba(255, 255, 255, 0.03);
-    border-radius: 4px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px dashed var(--fluent-accent);
+    border-radius: 8px;
     font-size: 13px;
-    color: var(--fluent-text-tertiary);
+    color: var(--fluent-accent-light);
   }
 
   .drop-icon {
@@ -554,8 +519,9 @@
   /* File Section */
   .file-section {
     width: 100%;
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 6px;
+    background: #faf9f8; /* Very Light Grey */
+    border: 1px solid var(--fluent-border-default);
+    border-radius: 4px;
     padding: 16px;
   }
 
@@ -569,25 +535,23 @@
   .file-section-header h3 {
     margin: 0;
     font-size: 13px;
-    font-weight: 500;
-    color: var(--fluent-accent-secondary);
+    font-weight: 600;
+    color: var(--fluent-text-primary);
   }
 
   .clear-btn {
-    padding: 6px 12px;
+    padding: 4px 8px;
     background: transparent;
-    border: 1px solid var(--fluent-border);
-    border-radius: 4px;
-    color: var(--fluent-text-tertiary);
-    font-size: 12px;
+    border: none;
+    color: var(--fluent-accent);
+    font-size: 13px;
+    font-weight: 600;
     cursor: pointer;
-    transition: all 0.15s ease;
   }
 
   .clear-btn:hover {
-    background: rgba(255, 107, 107, 0.1);
-    border-color: var(--fluent-danger);
-    color: var(--fluent-danger);
+    text-decoration: underline;
+    background: transparent;
   }
 
   /* File Grid */
@@ -600,11 +564,12 @@
   .file-card {
     position: relative;
     aspect-ratio: 1;
-    border-radius: 6px;
+    border-radius: 12px;
     overflow: hidden;
     background: rgba(0, 0, 0, 0.3);
-    border: 1px solid var(--fluent-border);
+    border: 1px solid var(--fluent-border-subtle);
     transition: all 0.15s ease;
+    box-shadow: var(--fluent-shadow-2);
   }
 
   .file-card:hover {
@@ -670,6 +635,17 @@
     color: var(--fluent-text-tertiary);
   }
 
+  .input-actions-row {
+    display: flex;
+    gap: 20px; /* Increased spacing for better visibility */
+  }
+
+  .input-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--fluent-accent-dark); /* Dark Navy for authority */
+  }
+
   /* Analyze Button */
   /* Mode Selection */
   .mode-selection {
@@ -695,95 +671,118 @@
     justify-content: center;
     gap: 12px;
     padding: 16px;
-    border: none;
-    border-radius: 8px;
+    border: 1px solid transparent;
+    border-radius: 4px;
     color: white;
     cursor: pointer;
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: background 0.1s;
     position: relative;
     overflow: hidden;
   }
 
-  .analyze-btn:disabled {
-    opacity: 0.6;
+  .analyze-btn:disabled:not(.is-busy) {
+    background: #f3f2f1;
+    color: #a19f9d;
     cursor: not-allowed;
-    filter: grayscale(1);
+    border-color: #e1dfdd;
   }
 
-  .analyze-btn:hover:not(:disabled) {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-  }
-
-  .analyze-btn:active:not(:disabled) {
-    transform: translateY(0);
-  }
-
-  /* Fast Track Button */
+  /* Analyze Button - Premium Blue Gradient */
+  .analyze-btn.multi-agent,
   .analyze-btn.fast-track {
-    background: linear-gradient(135deg, #ff512f 0%, #dd2476 100%);
+    background: var(--btn-primary-bg);
+    border: 1px solid var(--btn-primary-border);
+    color: white;
+    box-shadow: var(--btn-3d-shadow);
+    border-radius: 12px;
   }
 
-  .analyze-btn.fast-track::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.15),
-      transparent
-    );
-    pointer-events: none;
+  .analyze-btn.multi-agent:hover,
+  .analyze-btn.fast-track:hover {
+    box-shadow: var(--btn-3d-hover-shadow);
+    transform: translateY(-2px);
+    filter: brightness(1.1);
   }
 
-  /* Multi-Agent Button */
+  .analyze-btn.multi-agent:active,
+  .analyze-btn.fast-track:active {
+    transform: translateY(1px);
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Remove Jewel/3D Styles */
+  .analyze-btn.fast-track,
   .analyze-btn.multi-agent {
-    background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+    /* Reset specific 3D styles */
+    border: none;
   }
 
-  .analyze-btn.multi-agent::before {
-    content: "";
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(
-      to bottom,
-      rgba(255, 255, 255, 0.15),
-      transparent
-    );
-    pointer-events: none;
+  .btn-text .sub {
+    font-size: 0.75rem;
+    opacity: 0.8;
   }
 
-  .btn-text {
+  /* Secondary Button (Reset) - Standard Outline */
+  .btn-secondary {
+    padding: 0 1.5rem;
+    background: #ffffff;
+    border: 1px solid #cbd5e1; /* Slate 300 */
+    color: #475569; /* Slate 600 */
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.1s;
+    height: 56px;
+  }
+
+  .btn-secondary:hover {
+    background: #f8fafc; /* Slate 50 */
+    border-color: #475569;
+    color: #0f172a;
+  }
+
+  /* Input Actions (File/Camera) - Noir/Slate Style */
+  .fluent-btn {
+    flex: 1;
     display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 14px 20px;
+
+    background: var(--btn-noir-bg);
+    border: 1px solid var(--btn-noir-border);
+    border-radius: 8px;
+
+    color: var(--btn-noir-text);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--fluent-shadow-2);
+
+    transition: all 0.1s ease;
   }
 
-  .main-text {
-    font-size: 15px;
-    font-weight: 700;
-    line-height: 1.2;
+  .fluent-btn:hover {
+    background: white;
+    border-color: var(--fluent-accent); /* Tech Blue hover */
+    color: var(--fluent-accent);
+    box-shadow: var(--fluent-shadow-4);
+    transform: translateY(-1px);
   }
 
-  .sub-text {
-    font-size: 11px;
-    opacity: 0.9;
-    font-weight: 400;
+  .loading-state {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    color: #334155;
+    font-size: 0.95rem;
   }
 
-  /* Spinner */
   .spinner {
     width: 20px;
     height: 20px;
-    border: 2px solid rgba(255, 255, 255, 0.3);
-    border-top-color: white;
+    border: 3px solid rgba(37, 99, 235, 0.2); /* Faint Blue */
+    border-top-color: var(--fluent-accent); /* Tech Blue */
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
   }
@@ -794,6 +793,25 @@
     }
   }
 
+  .btn-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    text-align: left;
+    line-height: 1.25;
+  }
+
+  .main {
+    font-weight: 700;
+    font-size: 1rem;
+  }
+
+  .sub {
+    font-size: 0.8rem;
+    opacity: 0.85;
+    font-weight: 400;
+  }
+
   /* Error Toast */
   .error-toast {
     display: flex;
@@ -801,10 +819,11 @@
     gap: 10px;
     width: 100%;
     padding: 14px 16px;
-    background: rgba(255, 107, 107, 0.15);
-    border: 1px solid rgba(255, 107, 107, 0.3);
+    background: #fef2f2;
+    border: 1px solid #fca5a5;
     border-radius: 6px;
-    color: var(--fluent-danger);
+    color: #991b1b;
     font-size: 14px;
+    margin-top: 12px;
   }
 </style>

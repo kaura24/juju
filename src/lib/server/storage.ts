@@ -27,10 +27,84 @@ import { extractHITLReasonCodes, determineRequiredAction } from '$lib/validator/
 // 인메모리 저장소
 // ============================================
 
-const runs: Map<string, Run> = new Map();
-const stageEvents: Map<string, StageEvent[]> = new Map();
-const artifacts: Map<string, Map<string, unknown>> = new Map();
-const hitlPackets: Map<string, HITLPacket> = new Map();
+// ============================================
+// 인메모리 저장소 & 파일DB 경로 설정
+// ============================================
+
+import { writeFile, mkdir, readFile, readdir, unlink, rename } from 'fs/promises';
+import { join, dirname } from 'path';
+import os from 'os';
+
+const DATA_DIR = join(process.cwd(), 'data');
+const UPLOAD_DIR = join(process.cwd(), 'uploads');
+const LOG_DIR = join(process.cwd(), 'logs');
+
+// 디렉토리 구조
+const DIRS = {
+  runs: join(DATA_DIR, 'runs'),
+  events: join(DATA_DIR, 'events'),
+  artifacts: join(DATA_DIR, 'artifacts'),
+  hitl: join(DATA_DIR, 'hitl')
+};
+
+// 초기화 플래그
+let isDirsInitialized = false;
+
+async function ensureDirs() {
+  if (isDirsInitialized) return;
+  await mkdir(UPLOAD_DIR, { recursive: true });
+  await mkdir(LOG_DIR, { recursive: true });
+  for (const dir of Object.values(DIRS)) {
+    await mkdir(dir, { recursive: true });
+  }
+  isDirsInitialized = true;
+}
+
+// 헬퍼: 파일 기반 저장/로드 (Idempotency 강화: Atomic Write)
+async function _save<T>(dir: string, key: string, data: T): Promise<void> {
+  await ensureDirs();
+  const filePath = join(dir, `${key}.json`);
+  const tempPath = `${filePath}.${uuidv4()}.tmp`; // 고유한 임시 파일명
+
+  try {
+    // 1. 임시 파일에 쓰기
+    await writeFile(tempPath, JSON.stringify(data, null, 2));
+    // 2. 이름 변경 (Atomic Move)
+    await rename(tempPath, filePath);
+  } catch (error) {
+    // 실패 시 임시 파일 삭제 시도
+    try { await unlink(tempPath); } catch { }
+    throw error;
+  }
+}
+
+async function _load<T>(dir: string, key: string): Promise<T | null> {
+  await ensureDirs();
+  const filePath = join(dir, `${key}.json`);
+  try {
+    const data = await readFile(filePath, 'utf-8');
+    return JSON.parse(data) as T;
+  } catch {
+    return null;
+  }
+}
+
+async function _list<T>(dir: string): Promise<T[]> {
+  await ensureDirs();
+  try {
+    const files = await readdir(dir);
+    const results: T[] = [];
+    for (const file of files) {
+      if (file.endsWith('.json')) {
+        const data = await _load<T>(dir, file.replace('.json', ''));
+        if (data) results.push(data);
+      }
+    }
+    return results;
+  } catch {
+    return [];
+  }
+}
 
 // ============================================
 // Run 관리
@@ -48,10 +122,7 @@ export async function createRun(filePaths: string[]): Promise<Run> {
     updated_at: new Date().toISOString()
   };
 
-  runs.set(run.id, run);
-  stageEvents.set(run.id, []);
-  artifacts.set(run.id, new Map());
-
+  await _save(DIRS.runs, run.id, run);
   return run;
 }
 
@@ -59,7 +130,7 @@ export async function createRun(filePaths: string[]): Promise<Run> {
  * Run 조회
  */
 export async function getRun(runId: string): Promise<Run | null> {
-  return runs.get(runId) || null;
+  return await _load<Run>(DIRS.runs, runId);
 }
 
 /**
@@ -71,7 +142,7 @@ export async function updateRunStatus(
   currentStage?: StageName,
   errorMessage?: string
 ): Promise<void> {
-  const run = runs.get(runId);
+  const run = await getRun(runId);
   if (!run) {
     throw new Error(`Run not found: ${runId}`);
   }
@@ -85,42 +156,40 @@ export async function updateRunStatus(
   if (errorMessage !== undefined) {
     run.error_message = errorMessage;
   }
+
+  await _save(DIRS.runs, runId, run);
 }
 
 /**
  * 모든 Run 목록 조회
  */
 export async function listRuns(): Promise<Run[]> {
-  return Array.from(runs.values()).sort((a, b) =>
+  const runs = await _list<Run>(DIRS.runs);
+  return runs.sort((a, b) =>
     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   );
 }
 
 /**
  * 서버 재시작 시 실행 중인 모든 세션 정리
- * - running 상태의 모든 run을 error 상태로 변경
- * - 메시지: "Server restarted"
  */
 export async function cleanupRunningSessions(): Promise<number> {
   let cleanedCount = 0;
+  const runs = await _list<Run>(DIRS.runs);
 
-  for (const run of runs.values()) {
+  for (const run of runs) {
     if (run.status === 'running') {
       run.status = 'error';
-      run.error_message = 'Server restarted';
+      run.error_message = 'Server restarted or timeout';
       run.updated_at = new Date().toISOString();
+      await _save(DIRS.runs, run.id, run);
       cleanedCount++;
       console.log(`[Storage] Cleaned up running session: ${run.id}`);
     }
   }
 
-  if (cleanedCount > 0) {
-    console.log(`[Storage] Cleaned up ${cleanedCount} running sessions on restart`);
-  }
-
   return cleanedCount;
 }
-
 
 // ============================================
 // StageEvent 관리
@@ -130,18 +199,16 @@ export async function cleanupRunningSessions(): Promise<number> {
  * StageEvent 저장
  */
 export async function saveStageEvent(runId: string, event: StageEvent): Promise<void> {
-  const events = stageEvents.get(runId);
-  if (!events) {
-    throw new Error(`Run not found: ${runId}`);
-  }
+  const events = (await _load<StageEvent[]>(DIRS.events, runId)) || [];
   events.push(event);
+  await _save(DIRS.events, runId, events);
 }
 
 /**
  * Run의 모든 StageEvent 조회
  */
 export async function getStageEvents(runId: string): Promise<StageEvent[]> {
-  return stageEvents.get(runId) || [];
+  return (await _load<StageEvent[]>(DIRS.events, runId)) || [];
 }
 
 // ============================================
@@ -159,13 +226,10 @@ export async function saveArtifact(
   type: ArtifactType,
   data: DocumentAssessment | ExtractorOutput | NormalizedDoc | ValidationReport | InsightsAnswerSet
 ): Promise<void> {
-  const runArtifacts = artifacts.get(runId);
-  if (!runArtifacts) {
-    throw new Error(`Run not found: ${runId}`);
-  }
-
+  const runArtifacts = (await _load<Record<string, unknown>>(DIRS.artifacts, runId)) || {};
   const key = `${stage}:${type}`;
-  runArtifacts.set(key, data);
+  runArtifacts[key] = data;
+  await _save(DIRS.artifacts, runId, runArtifacts);
 }
 
 /**
@@ -176,13 +240,10 @@ export async function getArtifact<T>(
   stage: string,
   type: ArtifactType
 ): Promise<T | null> {
-  const runArtifacts = artifacts.get(runId);
-  if (!runArtifacts) {
-    return null;
-  }
-
+  const runArtifacts = await _load<Record<string, unknown>>(DIRS.artifacts, runId);
+  if (!runArtifacts) return null;
   const key = `${stage}:${type}`;
-  return (runArtifacts.get(key) as T) || null;
+  return (runArtifacts[key] as T) || null;
 }
 
 // ============================================
@@ -241,7 +302,7 @@ export async function createHITLPacket(
     created_at: new Date().toISOString()
   };
 
-  hitlPackets.set(packet.id, packet);
+  await _save(DIRS.hitl, packet.id, packet);
   return packet;
 }
 
@@ -249,14 +310,15 @@ export async function createHITLPacket(
  * HITL 패킷 조회
  */
 export async function getHITLPacket(packetId: string): Promise<HITLPacket | null> {
-  return hitlPackets.get(packetId) || null;
+  return await _load<HITLPacket>(DIRS.hitl, packetId);
 }
 
 /**
  * Run에 연결된 HITL 패킷 조회
  */
 export async function getHITLPacketByRunId(runId: string): Promise<HITLPacket | null> {
-  for (const packet of hitlPackets.values()) {
+  const packets = await _list<HITLPacket>(DIRS.hitl);
+  for (const packet of packets) {
     if (packet.run_id === runId && !packet.resolved_at) {
       return packet;
     }
@@ -275,49 +337,39 @@ export async function resolveHITLPacket(
     corrections?: Record<string, unknown>;
   }
 ): Promise<void> {
-  const packet = hitlPackets.get(packetId);
+  const packet = await getHITLPacket(packetId);
   if (!packet) {
     throw new Error(`HITL packet not found: ${packetId}`);
   }
 
   packet.resolved_at = new Date().toISOString();
   packet.resolution = resolution;
+  await _save(DIRS.hitl, packetId, packet);
 }
 
 /**
  * 대기 중인 HITL 패킷 목록 조회
  */
 export async function listPendingHITLPackets(): Promise<HITLPacket[]> {
-  return Array.from(hitlPackets.values())
+  const packets = await _list<HITLPacket>(DIRS.hitl);
+  return packets
     .filter(p => !p.resolved_at)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
 
 // ============================================
-// 파일 저장
+// 파일 저장 (기능 유지)
 // ============================================
-
-import { writeFile, mkdir, readFile } from 'fs/promises';
-import { join, dirname } from 'path';
-import os from 'os';
-
-const UPLOAD_DIR = join(os.tmpdir(), 'juju-uploads');
-const LOG_DIR = join(os.tmpdir(), 'juju-logs');
 
 /**
  * 업로드된 파일 저장
  */
 export async function saveFile(file: File): Promise<string> {
+  await ensureDirs();
   const buffer = Buffer.from(await file.arrayBuffer());
   const filename = `${uuidv4()}_${file.name}`;
   const filepath = join(UPLOAD_DIR, filename);
-
-  // 디렉토리 생성
-  await mkdir(dirname(filepath), { recursive: true });
-
-  // 파일 저장
   await writeFile(filepath, buffer);
-
   return filepath;
 }
 
@@ -325,23 +377,16 @@ export async function saveFile(file: File): Promise<string> {
  * Base64 이미지로 파일 저장
  */
 export async function saveBase64Image(base64Data: string, mimeType: string): Promise<string> {
+  await ensureDirs();
   const extension = mimeType.split('/')[1] || 'png';
   const filename = `${uuidv4()}.${extension}`;
   const filepath = join(UPLOAD_DIR, filename);
 
-  // data:image/png;base64, 접두사 제거
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
-
-  await mkdir(dirname(filepath), { recursive: true });
   await writeFile(filepath, buffer);
-
   return filepath;
 }
-
-// ============================================
-// 유틸리티
-// ============================================
 
 // ============================================
 // 로그 스토리지 (파일 기반)
@@ -349,33 +394,16 @@ export async function saveBase64Image(base64Data: string, mimeType: string): Pro
 
 import type { RunLogReport } from './agentLogger';
 
-// LOG_DIR is already defined above
-
 /**
- * 실행 로그 저장 (파일에 쓰기)
+ * 실행 로그 저장
  */
 export async function saveRunLog(log: RunLogReport): Promise<void> {
-  const filepath = join(LOG_DIR, `${log.run_id}.json`);
-
-  try {
-    await mkdir(dirname(filepath), { recursive: true });
-    await writeFile(filepath, JSON.stringify(log, null, 2));
-  } catch (error) {
-    console.error(`Failed to save run log ${log.run_id}:`, error);
-  }
+  await _save(LOG_DIR, log.run_id, log);
 }
 
 /**
- * 실행 로그 로드 (파일에서 읽기)
+ * 실행 로그 로드
  */
 export async function loadRunLog(runId: string): Promise<RunLogReport | null> {
-  const filepath = join(LOG_DIR, `${runId}.json`);
-
-  try {
-    const data = await readFile(filepath, 'utf-8');
-    return JSON.parse(data) as RunLogReport;
-  } catch (error) {
-    // 파일이 없으면 null 반환 (아직 생성 안됨)
-    return null;
-  }
+  return await _load<RunLogReport>(LOG_DIR, runId);
 }

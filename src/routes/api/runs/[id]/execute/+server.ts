@@ -20,14 +20,23 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
       return json({ error: 'Run not found' }, { status: 404 });
     }
 
-    if (run.status !== 'pending') {
+    if (run.status === 'running') {
       return json({
-        error: `Run is already ${run.status}`,
+        error: '이미 분석이 진행 중입니다.',
         success: false
       }, { status: 400 });
     }
 
-    const { mode } = await request.json().catch(() => ({ mode: undefined }));
+    if (run.status === 'completed') {
+      return json({
+        error: '이미 분석이 완료된 항목입니다.',
+        success: false
+      }, { status: 400 });
+    }
+
+    const body = await request.json().catch(() => ({}));
+    console.log(`[API-DEBUG] EXECUTE Request for runId=${runId}, Body:`, JSON.stringify(body));
+    const { mode } = body;
 
     // 백그라운드에서 실행 (즉시 응답)
     const executionPromise = executeRun(runId, mode).catch(error => {

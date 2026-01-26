@@ -31,12 +31,20 @@ let apiKeyInitialized = false;
  * API Key 초기화 (한 번만 실행)
  */
 export function ensureApiKey(): void {
-  if (apiKeyInitialized) return;
-
   const config = loadEnvConfig();
+  if (!config.OPENAI_API_KEY) {
+    console.warn('[Agent-DEBUG] OPENAI_API_KEY is missing in env!');
+    return;
+  }
+
+  // Always set to ensure SDK state is fresh across potential module reloads or async contexts
   setDefaultOpenAIKey(config.OPENAI_API_KEY);
-  apiKeyInitialized = true;
-  console.log(`[Agent] OpenAI API Key initialized. Default Model: ${MODEL}, Fallback: ${FALLBACK_MODEL}`);
+
+  if (!apiKeyInitialized) {
+    console.log(`[Agent-DEBUG] API Key initialized (starts with: ${config.OPENAI_API_KEY.substring(0, 7)}...)`);
+    console.log(`[Agent] OpenAI API Key initialized. Default Model: ${MODEL}, Fallback: ${FALLBACK_MODEL}`);
+    apiKeyInitialized = true;
+  }
 }
 
 // ============================================
@@ -679,6 +687,7 @@ export async function runGatekeeperAgent(
 
   // API Key 초기화
   ensureApiKey();
+  console.log('[Agent-DEBUG] runGatekeeperAgent: key verified');
 
   try {
     const result = await run(gatekeeperAgent, input);
@@ -746,6 +755,7 @@ JSON 형식으로만 응답하세요.
 
   // API Key 초기화
   ensureApiKey();
+  console.log('[Agent-DEBUG] runExtractorAgent: key verified');
 
   try {
     const result = await run(extractorAgent, input);
@@ -782,6 +792,7 @@ export async function runNormalizerAgent(
 
   // API Key 초기화
   ensureApiKey();
+  console.log('[Agent-DEBUG] runNormalizerAgent: key verified');
 
   const input = `다음 추출 데이터를 정규화하세요. JSON 형식으로만 응답하세요:
 
@@ -823,6 +834,7 @@ export async function runAnalystAgent(
 
   // API Key 초기화
   ensureApiKey();
+  console.log('[Agent-DEBUG] runAnalystAgent: key verified');
 
   const input = `다음 데이터를 분석하여 최종 답변을 생성하세요. JSON 형식으로만 응답하세요:
 

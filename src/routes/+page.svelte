@@ -182,10 +182,13 @@
 
 <style>
   .home {
-    max-width: 800px;
+    max-width: 600px; /* Standardize to 600px as per Design System */
     margin: 0 auto;
-    padding: 24px 24px 48px;
+    padding: 24px 16px 48px;
     min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center; /* Center align children */
   }
 
   /* System Status Bar */
@@ -199,7 +202,8 @@
     font-weight: 500;
     margin: 0 auto 32px;
     background: var(--fluent-bg-card);
-    border: 1px solid var(--fluent-border-subtle);
+    border: 1px solid var(--fluent-border-default);
+    box-shadow: var(--fluent-shadow-4); /* Stronger shadow */
     display: flex;
     width: fit-content;
   }
@@ -308,16 +312,19 @@
     align-items: center;
     gap: 14px;
     padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid transparent;
+    background: var(--fluent-bg-layer); /* Distinct layer */
+    border: 1px solid var(--fluent-border-subtle);
     border-radius: var(--fluent-radius-m);
     text-decoration: none;
     transition: all var(--fluent-duration-fast) var(--fluent-easing);
+    box-shadow: var(--fluent-shadow-2);
   }
 
   .run-item:hover {
-    background: rgba(255, 255, 255, 0.05);
-    border-color: var(--fluent-border-default);
+    background: var(--fluent-bg-card);
+    border-color: var(--fluent-accent); /* Blue border on hover */
+    transform: translateY(-1px);
+    box-shadow: var(--fluent-shadow-4);
   }
 
   .status-indicator {
@@ -353,8 +360,9 @@
   }
 
   .status-indicator.pending {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--fluent-bg-smoke);
     color: var(--fluent-text-tertiary);
+    border: 1px solid var(--fluent-border-subtle);
   }
 
   @keyframes pulse {

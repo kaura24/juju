@@ -1,5 +1,5 @@
 <!-- File: README.md -->
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.1
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.2
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
@@ -142,3 +142,66 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 **Last Updated**: 2026-01-25
 **System Version**: 2.2 (Full Feature Documentation)
 **Maintainer**: JuJu Dev Team
+
+---
+
+## 5. 🛠️ 트러블슈팅 및 유지보수 가이드 (Troubleshooting & Maintenance)
+
+### 🚨 PDF Processing & Image Conversion (Critical)
+**[2026-01-26] PDF 인식 실패 및 JSON 파싱 에러 해결 기록**
+
+PDF를 이미지로 변환하는 `scripts/pdf-to-images.cjs` 모듈은 Node.js 환경과 `pdfjs-dist` 라이브러리 간의 호환성에 매우 민감합니다. **절대로** 충분한 테스트 없이 이 모듈이나 관련 의존성을 업데이트하지 마십시오.
+
+#### 1. 문제 상황 (Issue)
+- **증상 1**: `npm run dev` 실행 중 PDF 변환 시 "Segmentation Fault" 또는 이유 없는 프로세스 종료 발생.
+- **증상 2**: `JSON Parse Error` (Unexpected token 'W'). `pdfjs-dist`에서 발생하는 경고 메시지("Warning: Cannot polyfill...")가 표준 출력(stdout)으로 새어 나와 결과값(JSON)을 오염시킴.
+
+#### 2. 원인 (Root Cause)
+- **버전 호환성**: `pdfjs-dist` v4.x 버전은 최신 Node.js 환경의 Canvas API와 충돌하여 렌더링 시 **Segmentation Fault**를 유발함.
+- **로그 오염**: `pdfjs-dist` 내부에서 발생하는 `console.warn` 로그가 프로세스의 `stdout`으로 출력되어, 파이프라인이 이를 JSON 데이터로 착각하고 파싱하려다 실패함.
+
+#### 3. 해결 및 제어 조치 (Resolution & Controls)
+1.  **Downgrade to v3**: `pdfjs-dist` 버전을 안정적인 **`3.11.174`**로 고정했습니다. (v4.x로 업그레이드 금지)
+2.  **Explicit CommonJS**: `scripts/pdf-to-images.cjs`는 ESM(`import`) 대신 **CommonJS(`require`)** 방식을 사용하여 안정성을 확보했습니다.
+3.  **Stdout Protection**: 스크립트 최상단에서 `console.log`와 `console.warn`을 강제로 `console.error`(`stderr`)로 리다이렉트했습니다.
+    ```javascript
+    // scripts/pdf-to-images.cjs
+    const originalLog = console.log;
+    const originalWarn = console.warn;
+    console.log = console.error; // Stdout 오염 방지
+    console.warn = console.error;
+    ```
+    이로 인해 오직 결과 JSON만이 `process.stdout.write`를 통해 출력됨을 보장합니다.
+
+#### ⚠️ 유지보수 주의사항 (Maintenance Warning)
+- **`package.json`**: `pdfjs-dist` 버전을 **`^3.11.174`**로 유지하십시오. 캐럿(`^`)이 있더라도 메이저 버전 업데이트는 피해야 합니다.
+- **`scripts/pdf-to-images.cjs`**: 이 파일의 로깅 로직(`console.log` 오버라이딩)을 제거하지 마십시오. 제거 시 다시 JSON 파싱 에러가 재발합니다.
+
+---
+
+## 6. 🎨 UI 디자인 시스템 (User Interface Design System)
+
+### Design Core: Microsoft Fluent Design v4.0 (Light Mode)
+본 프로젝트는 엔터프라이즈 환경에서의 가독성과 신뢰성을 높이기 위해 **Microsoft Fluent Design System**을 채택하고 있으며, 생산성 향상을 위한 독자적인 그라데이션 시스템(v4.2)이 적용되어 있습니다.
+
+#### 1. 컬러 팔레트 구조 (Color Palette Structure)
+모든 스타일은 `src/routes/layout.css`에 CSS Variable로 정의되어 있어 유지보수가 용이합니다.
+
+| 분류 (Category) | 변수명 (Variable) | 색상값 (Hex/Gradient) | 용도 (Usage) |
+| :--- | :--- | :--- | :--- |
+| **Background** | `--fluent-bg-solid` | `#f3f3f3` | 전체 앱 배경 (Soft Grey) |
+| | `--fluent-bg-card` | `#ffffff` | 콘텐츠 카드 배경 (Pure White) |
+| | `--fluent-bg-acrylic` | `rgba(255,255,255, 0.95)` | 반투명 글래스 이펙트 |
+| **Text** | `--fluent-text-primary` | `#202020` | 본문, 주요 데이터 (Nearly Black) |
+| | `--fluent-text-secondary` | `#606060` | 설명, 메타데이터 (Medium Grey) |
+| | `--fluent-text-disabled` | `#bdc3c7` | 비활성화 텍스트 |
+| **Accent** | `--fluent-accent` | `#2563eb` | 강조, 포커스, 링크 (Tech Blue) |
+| **Action** | `--btn-primary-bg` | `Linear Gradient (Blue)` | 주요 액션 버튼 (입체감 적용) |
+| | `--btn-noir-bg` | `Linear Gradient (Slate)` | 보조 액션 버튼 (Neutral) |
+| | `--btn-danger-bg` | `Linear Gradient (Red)` | 위험 액션 (삭제 등) |
+
+#### 2. 시각적 계층 (Visual Hierarchy)
+- **Elevation (그림자)**: `fluent-shadow-2` ~ `16` 단계를 사용하여 요소의 중요도에 따라 입체감을 부여했습니다.
+- **Typography**: 'Segoe UI Variable'을 기본으로 하여 숫자 가독성에 최적화된 폰트 시스템을 사용합니다.
+- **Micro-Interactions**: 모든 버튼과 링크에는 `83ms`(Fast) ~ `167ms`(Normal)의 부드러운 전환 애니메이션(`cubic-bezier`)이 적용되어 있습니다.
+

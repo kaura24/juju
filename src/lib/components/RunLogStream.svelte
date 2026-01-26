@@ -199,13 +199,26 @@
                         </div>
 
                         <div class="block-body">
+                            {#if group.logs.length === 0}
+                                <div class="no-logs">
+                                    작업을 기다리고 있습니다...
+                                </div>
+                            {/if}
                             {#each group.logs as log}
                                 <div class="log-line {log.level.toLowerCase()}">
-                                    {#if log.level === "ERROR"}❌{/if}
-                                    {#if log.level === "WARNING"}⚠️{/if}
-                                    <span class="log-text"
-                                        >{log.action}: {log.detail}</span
+                                    <span class="log-time"
+                                        >{getTime(log.timestamp)}</span
                                     >
+                                    <span class="log-level-icon"
+                                        >{getIcon(log.level)}</span
+                                    >
+                                    <span class="log-text">
+                                        {#if log.action}<strong
+                                                >{log.action}</strong
+                                            >:
+                                        {/if}
+                                        {log.detail}
+                                    </span>
                                 </div>
                             {/each}
                         </div>
@@ -221,45 +234,61 @@
         </div>
     </div>
 
-    <!-- Navigation Controls -->
     <!-- Navigation Controls - Always Visible -->
     <div class="nav-controls">
         <button
-            class="nav-btn"
+            class="nav-btn prev"
             onclick={prev}
             disabled={activeGroupIndex === 0}
             aria-label="Previous agent"
         >
-            <span>←</span>
+            <span class="nav-icon">←</span>
+            <span class="btn-label">이전</span>
         </button>
 
-        <div class="indicators" role="navigation" aria-label="Agent navigation">
-            {#each agentGroups as group, i}
-                <button
-                    class="dot {i === activeGroupIndex ? 'active' : ''}"
-                    onclick={() => scrollToGroup(i)}
-                    aria-label="Go to {agentDisplayNames[group.agent] ||
-                        group.agent}"
-                    aria-current={i === activeGroupIndex}
-                    tabindex="0"
-                    onkeydown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                            e.preventDefault();
-                            scrollToGroup(i);
-                        }
-                    }}
+        <div class="nav-center">
+            <div class="agent-compact-info">
+                <span class="agent-count"
+                    >{activeGroupIndex + 1} / {agentGroups.length || 0}</span
                 >
-                </button>
-            {/each}
+                <span class="agent-name-label">
+                    {#if agentGroups[activeGroupIndex]}
+                        {agentGroups[activeGroupIndex].agent.split("_").pop() ||
+                            agentGroups[activeGroupIndex].agent}
+                    {:else}
+                        No agents
+                    {/if}
+                </span>
+            </div>
+            <div
+                class="indicators"
+                role="navigation"
+                aria-label="Agent navigation"
+            >
+                {#each agentGroups as group, i}
+                    <button
+                        class="dot {i === activeGroupIndex
+                            ? 'active'
+                            : ''} {group.status}"
+                        onclick={() => scrollToGroup(i)}
+                        aria-label="Go to {agentDisplayNames[group.agent] ||
+                            group.agent}"
+                        aria-current={i === activeGroupIndex}
+                        tabindex="0"
+                    >
+                    </button>
+                {/each}
+            </div>
         </div>
 
         <button
-            class="nav-btn"
+            class="nav-btn next"
             onclick={next}
             disabled={activeGroupIndex >= agentGroups.length - 1}
             aria-label="Next agent"
         >
-            <span>→</span>
+            <span class="btn-label">이후</span>
+            <span class="nav-icon">→</span>
         </button>
     </div>
 </div>
@@ -303,21 +332,47 @@
     .agent-block {
         width: 100%;
         max-width: 500px;
-        min-height: 400px;
-        background: #1e1e2e;
+        /* Height adjustment for single-screen feel - Make it responsive but not too tall */
+        min-height: 320px;
+        max-height: 450px; /* Cap height to ensure it fits on mobile screens */
+        background: var(--fluent-bg-layer);
         border-radius: 16px;
-        border: 1px solid #313244;
+        border: 1px solid var(--fluent-border-default);
         display: flex;
         flex-direction: column;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        box-shadow: var(--fluent-shadow-8);
         transition: all 0.3s ease;
     }
 
     .agent-block.active-focus {
-        border-color: #89b4fa;
+        /* Gradient Border Logic */
+        border: 1px solid var(--fluent-accent);
+        background-color: var(--fluent-bg-layer);
+
+        /* Strong Glow Effect - Dark Mode Blue */
         box-shadow:
-            0 20px 50px rgba(137, 180, 250, 0.25),
-            0 0 0 3px rgba(137, 180, 250, 0.1);
+            0 0 20px rgba(59, 130, 246, 0.25),
+            /* Blue glow */ 0 0 0 1px rgba(59, 130, 246, 0.4); /* Sharp thin border */
+
+        animation: breath-glow 3s infinite ease-in-out;
+    }
+
+    @keyframes breath-glow {
+        0% {
+            box-shadow:
+                0 0 15px rgba(59, 130, 246, 0.2),
+                0 0 0 1px rgba(59, 130, 246, 0.4);
+        }
+        50% {
+            box-shadow:
+                0 0 30px rgba(59, 130, 246, 0.5),
+                0 0 0 2px rgba(59, 130, 246, 0.6);
+        }
+        100% {
+            box-shadow:
+                0 0 15px rgba(59, 130, 246, 0.2),
+                0 0 0 1px rgba(59, 130, 246, 0.4);
+        }
     }
 
     .agent-block.error {
@@ -326,20 +381,20 @@
 
     .block-header {
         padding: 1.25rem;
-        background: linear-gradient(
-            180deg,
-            rgba(49, 50, 68, 0.5) 0%,
-            rgba(49, 50, 68, 0) 100%
-        );
-        border-bottom: 1px solid #313244;
+        background: rgba(0, 0, 0, 0.2);
+        border-bottom: 1px solid var(--fluent-border-default);
         display: flex;
         align-items: center;
         gap: 10px;
     }
 
+    .agent-icon {
+        font-size: 1.5rem;
+    }
+
     .agent-name {
         font-weight: 700;
-        color: #cdd6f4;
+        color: var(--fluent-text-primary);
         font-size: 1rem;
         flex: 1;
     }
@@ -374,26 +429,54 @@
     }
 
     .log-line {
-        font-size: 0.85rem;
-        color: #a6adc8;
-        padding: 6px 10px;
-        background: rgba(255, 255, 255, 0.02);
+        font-size: 0.8rem;
+        color: var(--fluent-text-primary);
+        padding: 8px 10px;
+        background: rgba(0, 0, 0, 0.02);
         border-radius: 6px;
         border-left: 2px solid transparent;
+        display: flex;
+        gap: 8px;
+        line-height: 1.4;
     }
+
+    .log-time {
+        font-family: monospace;
+        font-size: 0.75rem;
+        color: var(--fluent-text-tertiary);
+        white-space: nowrap;
+    }
+
+    .log-level-icon {
+        flex-shrink: 0;
+    }
+
+    .log-text {
+        word-break: break-all;
+    }
+
+    .no-logs {
+        padding: 2rem;
+        text-align: center;
+        color: #585b70;
+        font-style: italic;
+    }
+
     .log-line.info {
         border-left-color: #89b4fa;
     }
     .log-line.success {
         border-left-color: #a6e3a1;
-        background: rgba(166, 227, 161, 0.05);
+        background: rgba(166, 227, 161, 0.08);
     }
     .log-line.error {
         border-left-color: #f38ba8;
-        background: rgba(243, 139, 168, 0.05);
+        background: rgba(243, 139, 168, 0.08);
+        color: #f38ba8;
     }
     .log-line.warning {
         border-left-color: #f9e2af;
+        background: rgba(249, 226, 175, 0.05);
     }
 
     .connector {
@@ -408,68 +491,138 @@
     .nav-controls {
         display: flex;
         align-items: center;
-        justify-content: center;
-        gap: 1.5rem;
-        padding: 1.5rem;
-        background: #13131f;
-        border-top: 1px solid #2d2d44;
+        justify-content: space-between;
+        gap: 0.5rem;
+        padding: 0.75rem 1rem;
+        background: rgba(0, 0, 0, 0.2);
+        border-top: 1px solid var(--fluent-border-default);
         flex-shrink: 0;
+        border-bottom-left-radius: 16px;
+        border-bottom-right-radius: 16px;
     }
 
     .nav-btn {
-        width: 48px;
-        height: 48px;
-        background: #1e1e2e;
-        border: 1px solid #313244;
-        border-radius: 50%;
-        color: #a0aec0;
-        font-size: 1.2rem;
-        cursor: pointer;
-        transition: all 0.2s;
         display: flex;
         align-items: center;
-        justify-content: center;
+        gap: 6px;
+        background: var(--fluent-bg-layer);
+        border: 1px solid var(--fluent-border-default);
+        border-radius: 8px;
+        color: var(--fluent-text-secondary);
+        padding: 0.5rem 0.75rem;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 600;
+        font-size: 0.9rem;
+        box-shadow: var(--fluent-shadow-2);
     }
 
     .nav-btn:hover:not(:disabled) {
-        background: #2a2a3e;
-        border-color: #89b4fa;
-        color: #89b4fa;
-        transform: scale(1.1);
+        background: var(--fluent-bg-card);
+        border-color: var(--fluent-accent);
+        color: var(--fluent-accent-light);
+        box-shadow: var(--btn-3d-shadow);
+        transform: translateY(-1px);
+    }
+
+    .nav-btn:active:not(:disabled) {
+        transform: translateY(1px);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
     }
 
     .nav-btn:disabled {
-        opacity: 0.3;
+        opacity: 0.2;
         cursor: not-allowed;
+    }
+
+    .nav-center {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .agent-compact-info {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 0.8rem;
+    }
+
+    .agent-count {
+        color: var(--fluent-accent-light);
+        font-family: monospace;
+        font-weight: bold;
+    }
+
+    .agent-name-label {
+        color: var(--fluent-text-primary);
+        font-weight: 500;
+        max-width: 100px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
 
     .indicators {
         display: flex;
-        gap: 0.75rem;
+        gap: 6px;
         align-items: center;
     }
 
     .dot {
-        width: 12px;
-        height: 12px;
-        border-radius: 50%;
-        background: #45475a;
+        width: 8px;
+        height: 8px;
+        border-radius: 4px;
+        background: var(--fluent-border-strong);
         border: none;
         cursor: pointer;
         transition: all 0.3s;
         padding: 0;
     }
 
-    .dot:hover {
-        background: #6c7086;
-        transform: scale(1.2);
-    }
-
     .dot.active {
         background: #89b4fa;
-        width: 28px;
-        border-radius: 6px;
-        box-shadow: 0 0 12px rgba(137, 180, 250, 0.6);
+        width: 16px;
+        box-shadow: 0 0 8px rgba(137, 180, 250, 0.4);
+    }
+
+    .dot.running {
+        background: #89b4fa;
+        animation: pulse-dot 1s infinite alternate;
+    }
+
+    .dot.completed {
+        background: #a6e3a1;
+    }
+
+    .dot.error {
+        background: #f38ba8;
+    }
+
+    @keyframes pulse-dot {
+        from {
+            opacity: 0.5;
+            transform: scale(0.9);
+        }
+        to {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+    }
+
+    .btn-label {
+        font-size: 0.8rem;
+    }
+
+    @media (max-width: 400px) {
+        .btn-label {
+            display: none;
+        }
+        .nav-btn {
+            padding: 0.5rem;
+        }
     }
 
     /* Progress Bar */

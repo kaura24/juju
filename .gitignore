@@ -24,7 +24,8 @@ vite.config.ts.timestamp-*
 
 # Project Specific
 /uploads/*
-/data/logs/*
+/data/*
+/logs/*
 *.log
 lint_output.txt
 

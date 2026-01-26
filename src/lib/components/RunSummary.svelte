@@ -107,10 +107,7 @@
     // Check if Top Shareholder Fallback occurred
     let isFallbackBO = $derived(
         (() => {
-            if (
-                !finalAnswer?.over_25_percent ||
-                "UNKNOWN" in finalAnswer.over_25_percent
-            ) {
+            if (!Array.isArray(finalAnswer?.over_25_percent)) {
                 return false;
             }
             return (
@@ -208,12 +205,7 @@
                 {/if}
             </div>
 
-            {#if connectedModel}
-                <div class="model-badge">
-                    <span class="dot"></span>
-                    {connectedModel}
-                </div>
-            {/if}
+            <!-- Removed Model Badge as per user request -->
         </div>
 
         <!-- Running/Error States content inside the first card -->
@@ -300,7 +292,7 @@
                 >
             </div>
 
-            {#if finalAnswer.over_25_percent && !("UNKNOWN" in finalAnswer.over_25_percent)}
+            {#if Array.isArray(finalAnswer.over_25_percent)}
                 <div class="shareholders-list">
                     {#each finalAnswer.over_25_percent as shareholder, i}
                         <div class="shareholder-item">
@@ -342,8 +334,9 @@
             {:else}
                 <div class="message-box warning">
                     ⚠️ {finalAnswer.over_25_percent &&
-                    "UNKNOWN" in finalAnswer.over_25_percent
-                        ? finalAnswer.over_25_percent.reason
+                    typeof finalAnswer.over_25_percent === "object" &&
+                    "reason" in finalAnswer.over_25_percent
+                        ? (finalAnswer.over_25_percent as any).reason
                         : "식별 불가"}
                 </div>
             {/if}
@@ -367,18 +360,18 @@
     }
 
     .info-card {
-        background: #1e1e2e;
+        background: #ffffff;
         border-radius: 12px;
         padding: 1.25rem;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
-        border: 1px solid #3d3d5c;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+        border: 1px solid var(--fluent-border-default);
         width: 100%;
-        box-sizing: border-box; /* IMPORTANT */
+        box-sizing: border-box;
     }
 
     .context-card {
-        background: linear-gradient(135deg, #1e1e2e, #161625);
-        border-color: #4c51bf; /* Indigo accent */
+        background: linear-gradient(135deg, #ffffff, #f8fafc);
+        border-color: var(--fluent-accent-light);
     }
 
     .context-grid {
@@ -402,7 +395,7 @@
 
     .context-item .label {
         font-size: 0.75rem;
-        color: #718096;
+        color: var(--fluent-text-secondary);
         text-transform: uppercase;
         letter-spacing: 0.025em;
     }
@@ -410,7 +403,7 @@
     .context-item .value {
         font-size: 1.1rem;
         font-weight: 600;
-        color: #e2e8f0;
+        color: var(--fluent-text-primary);
     }
 
     .context-item .value.highlight {
@@ -440,7 +433,7 @@
     .card-title {
         font-size: 1.1rem;
         font-weight: 700;
-        color: #cbd5e0; /* Lighter gray */
+        color: var(--fluent-text-primary);
         margin: 0 0 1rem 0;
         display: block;
     }
@@ -448,7 +441,7 @@
     /* Enhanced visibility for Beneficial Owner section specifically */
     .card-header-row .card-title {
         font-size: 1.3rem;
-        color: #818cf8; /* Vibrant indigo */
+        color: var(--fluent-accent-dark); /* Darker blue for emphasis */
         letter-spacing: -0.01em;
     }
 
@@ -457,7 +450,7 @@
         justify-content: space-between;
         align-items: baseline;
         margin-bottom: 1rem;
-        border-bottom: 1px solid #3d3d5c;
+        border-bottom: 1px solid var(--fluent-border-default);
         padding-bottom: 0.5rem;
     }
 
@@ -468,7 +461,7 @@
     .card-subtitle {
         font-size: 1.1rem;
         font-weight: 600;
-        color: #9ca3af; /* More visible light gray */
+        color: var(--fluent-text-secondary);
     }
 
     .status-header {
@@ -492,7 +485,7 @@
         color: white;
         font-weight: 600;
         font-size: 0.9rem;
-        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     }
 
     .pulse {
@@ -500,31 +493,32 @@
     }
     @keyframes pulse {
         0% {
-            box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.4);
+            box-shadow: 0 0 0 0 rgba(99, 179, 237, 0.4);
         }
         70% {
-            box-shadow: 0 0 0 6px rgba(255, 255, 255, 0);
+            box-shadow: 0 0 0 6px rgba(99, 179, 237, 0);
         }
         100% {
-            box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+            box-shadow: 0 0 0 0 rgba(99, 179, 237, 0);
         }
     }
 
-    /* Colors */
+    /* Colors - Pastel Friendly */
     .bg-gray-500 {
-        background-color: #6b7280;
+        background-color: #a0aec0;
     }
     .bg-blue-500 {
-        background-color: #3b82f6;
+        background-color: #63b3ed;
     }
     .bg-emerald-500 {
-        background-color: #10b981;
+        background-color: #68d391;
     }
     .bg-amber-500 {
-        background-color: #f59e0b;
+        background-color: #f6e05e;
+        color: #744210; /* Darker text for yellow contrast */
     }
     .bg-red-500 {
-        background-color: #ef4444;
+        background-color: #fc8181;
     }
 
     .model-badge {
@@ -572,10 +566,21 @@
 
     /* Reasoning Text */
     .reasoning-text {
-        color: #e2e8f0;
+        color: #1e293b; /* Slate 800 - High Contrast Dark */
         line-height: 1.6;
-        font-size: 0.95rem;
+        font-size: 1.05rem;
         white-space: pre-wrap;
+
+        /* Blue Note Style for High Visibility */
+        background: #eff6ff; /* Blue 50 */
+        border: 1px solid #bfdbfe; /* Blue 200 */
+        border-left: 5px solid var(--fluent-accent); /* Tech Blue */
+
+        padding: 1.25rem;
+        border-radius: 6px;
+        font-weight: 500;
+        margin-top: 0.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
     }
 
     /* Shareholders List */
@@ -590,15 +595,15 @@
         grid-template-columns: 30px 1fr auto; /* Rank | Info | Ratio */
         gap: 1rem;
         padding: 0.75rem 1rem;
-        background: rgba(255, 255, 255, 0.02);
+        background: #f8fafc;
         border-radius: 8px;
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--fluent-border-default);
         align-items: center;
     }
 
     .shareholder-item .rank {
         font-weight: 600;
-        color: #94a3b8;
+        color: var(--fluent-text-tertiary);
         text-align: center;
     }
 
@@ -621,18 +626,18 @@
 
     .shareholder-item .name {
         font-weight: 600;
-        color: #e2e8f0;
+        color: var(--fluent-text-primary);
         font-size: 1.05rem;
         white-space: nowrap;
     }
 
     .entity-meta {
         font-size: 1.1rem;
-        color: #cbd5e0; /* Lighter gray for better visibility */
+        color: var(--fluent-text-secondary);
         font-family: monospace;
         display: inline-flex;
         align-items: center;
-        background: rgba(255, 255, 255, 0.05);
+        background: rgba(0, 0, 0, 0.04);
         padding: 2px 8px;
         border-radius: 4px;
         margin-left: 0.5rem;
@@ -641,7 +646,7 @@
     .shareholder-item .ratio {
         font-size: 1.1rem;
         font-weight: 700;
-        color: #48bb78;
+        color: var(--fluent-success);
         text-align: right;
     }
 
@@ -667,7 +672,7 @@
     /* Running/Error Box */
     .running-box {
         text-align: center;
-        color: #a0aec0;
+        color: var(--fluent-text-secondary);
         display: flex;
         flex-direction: column;
         gap: 1rem;
@@ -678,8 +683,8 @@
     .spinner {
         width: 30px;
         height: 30px;
-        border: 3px solid rgba(255, 255, 255, 0.1);
-        border-top-color: #3b82f6;
+        border: 3px solid rgba(0, 0, 0, 0.05);
+        border-top-color: var(--fluent-accent);
         border-radius: 50%;
         animation: spin 1s linear infinite;
     }
@@ -691,18 +696,26 @@
 
     .stop-btn {
         padding: 0.6rem 1.2rem;
-        background: #ef4444;
+        background: var(--btn-danger-bg);
+        border: 1px solid var(--btn-danger-border);
         color: white;
-        border: none;
         border-radius: 8px;
         font-weight: 600;
         cursor: pointer;
         display: flex;
         align-items: center;
         gap: 0.5rem;
+        box-shadow: var(--btn-3d-shadow);
+        transition: all 0.2s;
     }
     .stop-btn:hover {
-        background: #dc2626;
+        box-shadow: var(--btn-3d-hover-shadow);
+        filter: brightness(1.1);
+        transform: translateY(-2px);
+    }
+    .stop-btn:active {
+        transform: translateY(1px);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
     }
 
     .message-box {
@@ -747,23 +760,25 @@
         align-items: center;
         gap: 0.75rem;
         padding: 0.75rem 2.5rem;
-        background: linear-gradient(135deg, #6366f1, #4f46e5);
+        background: var(--btn-primary-bg);
+        border: 1px solid var(--btn-primary-border);
         color: white;
         text-decoration: none;
         border-radius: 12px;
         font-weight: 700;
         font-size: 1.1rem;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+        box-shadow: var(--btn-3d-shadow);
         transition: all 0.2s ease;
     }
 
     .home-btn:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(99, 102, 241, 0.4);
+        box-shadow: var(--btn-3d-hover-shadow);
         filter: brightness(1.1);
     }
 
     .home-btn:active {
-        transform: translateY(0);
+        transform: translateY(1px);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
     }
 </style>

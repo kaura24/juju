@@ -7,96 +7,100 @@
  */
 
 import { readFile } from 'fs/promises';
-import { createCanvas, Image } from '@napi-rs/canvas';
-import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
+import { createCanvas, Image, loadImage } from '@napi-rs/canvas';
 import * as UTIF from 'utif';
+import { spawn } from 'child_process';
+import { join } from 'path';
 
 // Fix for pdfjs-dist in Node.js - set global Image
 if (typeof global !== 'undefined') {
     (global as any).Image = Image;
 }
 
-// Custom CanvasFactory for pdfjs-dist 4.x in Node.js
-class NodeCanvasFactory {
-    create(width: number, height: number) {
-        if (width <= 0 || height <= 0) {
-            throw new Error(`Invalid canvas size: ${width} x ${height}`);
-        }
-        const canvas = createCanvas(width, height);
-        (canvas as any).style = {};  // PDF.js expects a style property
-        const context = canvas.getContext('2d');
-        return { canvas, context };
+/**
+ * 이미지 리사이징 헬퍼 (OOM 방지)
+ */
+async function resizeImageIfNeeded(base64: string, mimeType: string, maxDimension: number = 2048): Promise<string> {
+    const buffer = Buffer.from(base64, 'base64');
+    const image = await loadImage(buffer);
+
+    // Check dimensions
+    if (image.width <= maxDimension && image.height <= maxDimension) {
+        return base64; // No resize needed
     }
 
-    reset(canvasAndContext: any, width: number, height: number) {
-        if (!canvasAndContext.canvas) {
-            throw new Error('Canvas is not specified');
+    // Calculate new size
+    let width = image.width;
+    let height = image.height;
+    if (width > height) {
+        if (width > maxDimension) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
         }
-        canvasAndContext.canvas.width = width;
-        canvasAndContext.canvas.height = height;
+    } else {
+        if (height > maxDimension) {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+        }
     }
 
-    destroy(canvasAndContext: any) {
-        if (canvasAndContext.canvas) {
-            canvasAndContext.canvas.width = 0;
-            canvasAndContext.canvas.height = 0;
-        }
-    }
-}
+    console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height}`);
 
-const canvasFactory = new NodeCanvasFactory();
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(image, 0, 0, width, height);
 
-// PDF.js loading helper (Node.js compatibility)
-async function getPdfDocument(data: Buffer) {
-    return await (pdfjs as any).getDocument({
-        data: new Uint8Array(data),
-        useSystemFonts: true,
-        disableFontFace: true,
-        canvasFactory: canvasFactory
-    }).promise;
+    return canvas.toBuffer('image/jpeg', 85).toString('base64');
 }
 
 /**
- * PDF 파일을 이미지(Base64) 배열로 변환
+ * PDF 파일을 이미지(Base64) 배열로 변환 - 프로세스 격리 모드 (Child Process)
+ * - 멱등성 및 안정성 확보를 위해 독립 프로세스에서 실행
  */
 export async function convertPdfToImages(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
-    console.log(`[Converter] Converting PDF: ${filePath}`);
-    const data = await readFile(filePath);
-    const pdf = await getPdfDocument(data);
-    const images: { base64: string; mimeType: string }[] = [];
+    console.log(`[Converter] Converting PDF via Isolated Process: ${filePath}`);
 
-    console.log(`[Converter] PDF loaded: ${pdf.numPages} pages`);
-
-    // 모든 페이지 변환
-    for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 2.0 }); // 2x scale for better OCR
-
-        const { canvas, context } = canvasFactory.create(
-            Math.floor(viewport.width),
-            Math.floor(viewport.height)
-        );
-
-        console.log(`[Converter] Rendering page ${i}:`, { width: viewport.width, height: viewport.height });
-        try {
-            await page.render({
-                canvasContext: context as any,
-                viewport: viewport,
-                canvasFactory: canvasFactory
-            }).promise;
-        } catch (renderErr) {
-            console.error(`[Converter] Render Error on page ${i}:`, renderErr);
-            throw renderErr;
-        }
-
-        images.push({
-            base64: (canvas as any).toBuffer('image/png').toString('base64'),
-            mimeType: 'image/png'
+    return new Promise((resolve, reject) => {
+        const scriptPath = join(process.cwd(), 'scripts', 'pdf-to-images.cjs');
+        // Spawn doesn't have maxBuffer, it's a stream.
+        const child = spawn('node', [scriptPath, filePath], {
+            env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' }
         });
-        console.log(`[Converter] Page ${i} rendered`);
-    }
 
-    return images;
+        const stdoutChunks: Buffer[] = [];
+        const stderrChunks: Buffer[] = [];
+
+        child.stdout.on('data', (chunk: Buffer) => {
+            stdoutChunks.push(chunk);
+        });
+
+        child.stderr.on('data', (chunk: Buffer) => {
+            stderrChunks.push(chunk);
+            console.error(`[Converter-Child-Stderr] ${chunk.toString()}`);
+        });
+
+        child.on('close', (code: number) => {
+            const stdoutData = Buffer.concat(stdoutChunks).toString();
+            const stderrData = Buffer.concat(stderrChunks).toString();
+
+            if (code === 0) {
+                try {
+                    const images = JSON.parse(stdoutData.trim());
+                    console.log(`[Converter] Isolated Process Success. Retrieved ${images.length} pages.`);
+                    resolve(images);
+                } catch (e: any) {
+                    console.error('[Converter] JSON Parse Fail. Stdout length:', stdoutData.length);
+                    reject(new Error(`Failed to parse bridge output: ${e.message}`));
+                }
+            } else {
+                reject(new Error(`Isolated converter failed with code ${code}. Stderr: ${stderrData}`));
+            }
+        });
+
+        child.on('error', (err: Error) => {
+            reject(new Error(`Failed to start isolated converter: ${err.message}`));
+        });
+    });
 }
 
 /**
@@ -119,10 +123,13 @@ export async function convertTiffToImages(filePath: string): Promise<{ base64: s
         imageData.data.set(new Uint8ClampedArray(rgba));
         ctx.putImageData(imageData, 0, 0);
 
-        images.push({
-            base64: canvas.toBuffer('image/png').toString('base64'),
-            mimeType: 'image/png'
-        });
+        let finalBase64 = canvas.toBuffer('image/jpeg', 85).toString('base64');
+        const mimeType = 'image/jpeg';
+
+        // Resize check
+        finalBase64 = await resizeImageIfNeeded(finalBase64, mimeType);
+
+        images.push({ base64: finalBase64, mimeType });
         console.log(`[Converter] TIFF Frame ${i} rendered`);
     }
 
@@ -140,16 +147,22 @@ export async function prepareImagesForAnalysis(filePath: string): Promise<{ base
     } else if (ext === 'tif' || ext === 'tiff') {
         return await convertTiffToImages(filePath);
     } else {
-        // 일반 이미지는 그대로 반환 (배열로 감싸서)
+        // 일반 이미지
         const buffer = await readFile(filePath);
-        const base64 = buffer.toString('base64');
+        let base64 = buffer.toString('base64');
         const mimeTypes: Record<string, string> = {
             'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
             'gif': 'image/gif', 'webp': 'image/webp'
         };
-        return [{
-            base64,
-            mimeType: mimeTypes[ext || ''] || 'image/png'
-        }];
+        let mimeType = mimeTypes[ext || ''] || 'image/png';
+
+        // Resize check
+        base64 = await resizeImageIfNeeded(base64, mimeType);
+
+        // Ensure mimeType is updated to jpeg if we converted it
+        // resizeImageIfNeeded always returns jpeg base64
+        mimeType = 'image/jpeg';
+
+        return [{ base64, mimeType }];
     }
 }

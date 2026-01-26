@@ -1,5 +1,6 @@
 <script lang="ts">
   import "./layout.css";
+  import { page } from "$app/stores";
 
   let { children } = $props();
 </script>
@@ -24,8 +25,10 @@
       <span class="name">JuJu</span>
     </a>
     <div class="nav-links">
-      <a href="/">홈</a>
-      <a href="/hitl">HITL</a>
+      <a href="/" class:active={$page.url.pathname === "/"}>홈</a>
+      <a href="/hitl" class:active={$page.url.pathname.startsWith("/hitl")}
+        >HITL</a
+      >
     </div>
   </nav>
 
@@ -85,11 +88,30 @@
     padding: 0.5rem 1rem;
     border-radius: 8px;
     transition: all 0.2s ease;
+    position: relative;
+  }
+
+  /* Active Tab Style (UX Pattern v3.4) */
+  .nav-links a.active {
+    color: #ffffff;
+    font-weight: 700;
+  }
+
+  .nav-links a.active::after {
+    content: "";
+    position: absolute;
+    bottom: 0;
+    left: 1rem;
+    right: 1rem;
+    height: 3px;
+    background: var(--fluent-accent); /* Royal Blue */
+    border-radius: 3px 3px 0 0;
+    box-shadow: 0 -2px 6px rgba(59, 130, 246, 0.5); /* Glow */
   }
 
   .nav-links a:hover {
     color: #e2e8f0;
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.05); /* Lighter hover for dark theme */
   }
 
   .content {
