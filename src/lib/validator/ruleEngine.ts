@@ -226,6 +226,22 @@ export function validateNormalized(doc: NormalizedDoc): ValidationReport {
   }
 
   // ============================================
+  // E-ZERO-RATIO: 개별 지분율 0% 검증 (Strict)
+  // ============================================
+  // 주주인데 지분율이 0일 수는 없음 (퇴사자/양도자 명부 제외, 현재 주주 기준)
+  const zeroRatioRecords = shareholders.filter(s => s.ratio !== null && s.ratio <= 0 && s.shares !== 0);
+  if (zeroRatioRecords.length > 0) {
+    triggers.push({
+      rule_id: 'E-ZERO-RATIO',
+      severity: 'BLOCKER',
+      message: `지분율 0% 주주 ${zeroRatioRecords.length}명 발견 (주주는 반드시 지분을 보유해야 함)`,
+      suggestion: 'MANUAL_CORRECTION',
+      evidence_refs: zeroRatioRecords.flatMap(s => s.evidence_refs),
+      metrics: { count: zeroRatioRecords.length, names: zeroRatioRecords.map(s => s.name) }
+    });
+  }
+
+  // ============================================
   // E-REF-001: 기준값 부족
   // ============================================
   if (!has_reference_total && ratioCoverage < 0.5) {

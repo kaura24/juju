@@ -235,10 +235,23 @@
                 {/if}
             </div>
         {/if}
+
+        <!-- Step 5 Reasoning: Integrated into primary card for immediate context -->
+        {#if finalAnswer?.synthesis_reasoning}
+            <div class="analyst-inline-box">
+                <div class="analyst-header">
+                    <span class="icon">💡</span>
+                    <span class="label">종합 인사이터 (Step 5) 소견</span>
+                </div>
+                <div class="reasoning-text-compact">
+                    {finalAnswer.synthesis_reasoning}
+                </div>
+            </div>
+        {/if}
     </div>
 
-    <!-- Results Cards (Only when completed) -->
-    {#if status === "completed" && finalAnswer}
+    <!-- Results Cards (Only when completed OR in HITL with results) -->
+    {#if (status === "completed" || status === "hitl") && finalAnswer}
         <!-- Analysis Context (Summary) -->
         <div class="info-card context-card">
             <div class="context-grid">
@@ -270,16 +283,6 @@
                 </div>
             </div>
         </div>
-
-        <!-- Card 2: Analysis Reasoning -->
-        {#if finalAnswer.synthesis_reasoning}
-            <div class="info-card">
-                <h3 class="card-title">종합 분석 소견</h3>
-                <div class="reasoning-text">
-                    {finalAnswer.synthesis_reasoning}
-                </div>
-            </div>
-        {/if}
 
         <!-- Card 3: 25% Shareholders/Beneficial Owners -->
         <div class="info-card">
@@ -341,8 +344,10 @@
                 </div>
             {/if}
         </div>
+    {/if}
 
-        <!-- Back to Home Action -->
+    <!-- Back to Home Action (Visible in all final states) -->
+    {#if status !== "running" && status !== "loading"}
         <div class="actions-footer">
             <a href="/" class="home-btn">
                 <span>🏠</span> 홈으로 가기
@@ -599,6 +604,40 @@
         border-radius: 8px;
         border: 1px solid var(--fluent-border-default);
         align-items: center;
+    }
+
+    /* Analyst Inline Box Styles */
+    .analyst-inline-box {
+        margin-top: 1.25rem;
+        padding: 1rem;
+        background: #eff6ff; /* Blue 50 */
+        border: 1px solid #bfdbfe; /* Blue 200 */
+        border-left: 4px solid #3b82f6; /* Blue 500 */
+        border-radius: 8px;
+    }
+
+    .analyst-header {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .analyst-header .icon {
+        font-size: 1.1rem;
+    }
+
+    .analyst-header .label {
+        font-size: 0.9rem;
+        font-weight: 700;
+        color: #1e40af; /* Blue 800 */
+    }
+
+    .reasoning-text-compact {
+        font-size: 0.95rem;
+        line-height: 1.6;
+        color: #1e3a8a; /* Blue 900 */
+        white-space: pre-wrap;
     }
 
     .shareholder-item .rank {

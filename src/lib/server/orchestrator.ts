@@ -168,7 +168,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
 
     if (mode === 'FAST') {
       // ============================================
-      // FAST TRACK
+      // FAST TRACK (Adaptive Retry Logic)
       // ============================================
       currentStage = 'FastExtractor';
       await updateRunStatus(runId, 'running', 'FastExtractor');
@@ -188,27 +188,101 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
       });
 
       // Dynamic import to avoid circular dependency issues if any
-      console.log(`[Orchestrator] Run ${runId}: Importing fast_extractor...`);
       const { runFastExtractor } = await import('./agents/fast_extractor');
-      console.log(`[Orchestrator] Run ${runId}: fast_extractor imported.`);
+      const { extractHITLReasonCodes } = await import('../validator/ruleEngine');
 
-      // Check cancellation before expensive operation
-      if (isCancelled(runId)) {
-        throw new Error('Run cancelled by user');
+      let attempt = 1;
+      const MAX_ATTEMPTS = 2;
+      let fastResult;
+
+      // Retry Loop
+      while (attempt <= MAX_ATTEMPTS) {
+        const feedback = attempt > 1 ? '지분율 합계가 100%가 아니거나, 지분율이 0%인 주주가 발견되었습니다. 다시 정밀하게 계산해 주세요.' : undefined;
+        if (attempt > 1) {
+          console.log(`[Orchestrator] Retrying FastExtractor (Attempt ${attempt}) with feedback: ${feedback}`);
+          await addAgentLog(runId, 'FastExtractor', 'WARNING', `재시도 (${attempt}/${MAX_ATTEMPTS})`, '검증 실패로 인한 AI 재분석 수행');
+        }
+
+        console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
+        fastResult = await runFastExtractor(images, feedback);
+
+        // AI Initial Gatekeeping
+        if (!fastResult.is_valid) {
+          // ... (Same invalid logic) ...
+          // If invalid, we break immediately, no retry for invalid doc type usually
+          break;
+        }
+
+        // Step 2: Map to NormalizedDoc (Use raw output first)
+        const currentNormalizedDoc: NormalizedDoc = {
+          document_properties: {
+            company_name: fastResult.document_info?.company_name || null,
+            total_shares_issued: fastResult.document_info?.total_shares_declared || null,
+            total_capital: fastResult.document_info?.total_capital_declared || null,
+            par_value_per_share: null,
+            company_business_reg_number: null,
+            company_corporate_reg_number: null,
+            document_date: fastResult.document_info?.document_date || null,
+            document_type: '주주명부',
+            page_count: 1,
+            ownership_basis: 'UNKNOWN',
+            has_total_row: false,
+            total_row_values: null,
+            authorized_shares: null
+          },
+          shareholders: fastResult.shareholders?.map(s => ({
+            name: s.name,
+            identifier: s.identifier || null,
+            identifier_type: detectIdentifierType(s.identifier || '', s.entity_type || 'UNKNOWN'),
+            entity_type: s.entity_type || 'UNKNOWN',
+            entity_type_confidence: 0.9,
+            entity_signals: { raw_signals: [] },
+            shares: s.shares || null,
+            ratio: s.ratio || null,
+            amount: s.amount || null,
+            share_class: s.share_class || null,
+            address: s.remarks || null,
+            confidence: 0.9,
+            evidence_refs: [],
+            unknown_reasons: []
+          })) || [],
+          ordering_detected: 'UNKNOWN',
+          ownership_basis_detected: 'UNKNOWN',
+          normalization_notes: []
+        };
+
+        // Note: calculateEffectiveRatios NO LONGER auto-fixes 0% to 100% (reverted).
+        // It strictly follows declared ratio if present.
+        currentNormalizedDoc.shareholders = calculateEffectiveRatios(currentNormalizedDoc.shareholders, currentNormalizedDoc.document_properties);
+
+        // Step 3: Validation
+        const validationReport = validateNormalized(currentNormalizedDoc);
+        const reasonCodes = extractHITLReasonCodes(validationReport.triggers || []);
+
+        // [FIX] Always update normalizedDoc with the latest attempt's result
+        // This ensures that if we exit the loop (success or max attempts), normalizedDoc is valid.
+        normalizedDoc = currentNormalizedDoc;
+
+        // Check for Retry Conditions (Zero Ratio or Sum Mismatch means AI failure)
+        const needsRetry = reasonCodes.includes('RATIO_INCONSISTENCY') ||
+          validationReport.triggers.some(t => t.rule_id === 'E-ZERO-RATIO');
+
+        if (needsRetry && attempt < MAX_ATTEMPTS) {
+          attempt++;
+          continue; // Retry loop
+        }
+
+        // If we get here, either success or max attempts reached (and we proceed with the last result)
+        break;
       }
 
-      console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor...`);
-      const fastResult = await runFastExtractor(images);
-
-      // AI Initial Gatekeeping
-      if (!fastResult.is_valid) {
-        const reason = fastResult.rejection_reason || 'Invalid Doc';
+      if (!fastResult || !fastResult.is_valid) {
+        // Logic for handling invalid result (copied from original)
+        const reason = fastResult?.rejection_reason || 'Invalid Doc';
         await addAgentLog(runId, 'FastExtractor', 'WARNING', '문서 거부 (AI)', reason);
         await completeAgentLog(runId, 'FastExtractor', 'FAILED', '문서 거부');
-
         await updateRunStatus(runId, 'rejected');
         emitError(runId, `문서가 거부되었습니다: ${reason}`);
-
         await completeRunLog(runId, 'FAILED', {
           total_duration_ms: Date.now() - startTime,
           stages_completed: ['FastExtractor'],
@@ -221,50 +295,11 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         return;
       }
 
-      // Step 2: Map to NormalizedDoc for deterministic validation
-      const normalizedDoc: NormalizedDoc = {
-        document_properties: {
-          company_name: fastResult.document_info?.company_name || null,
-          total_shares_issued: fastResult.document_info?.total_shares_declared || null,
-          total_capital: fastResult.document_info?.total_capital_declared || null,
-          par_value_per_share: null,
-          company_business_reg_number: null,
-          company_corporate_reg_number: null,
-          document_date: fastResult.document_info?.document_date || null,
-          document_type: '주주명부',
-          page_count: 1,
-          ownership_basis: 'UNKNOWN',
-          has_total_row: false,
-          total_row_values: null,
-          authorized_shares: null
-        },
-        shareholders: fastResult.shareholders?.map(s => ({
-          name: s.name,
-          identifier: s.identifier || null,
-          identifier_type: detectIdentifierType(s.identifier || '', s.entity_type || 'UNKNOWN'),
-          entity_type: s.entity_type || 'UNKNOWN',
-          entity_type_confidence: 0.9,
-          entity_signals: { raw_signals: [] },
-          shares: s.shares || null,
-          ratio: s.ratio || null,
-          amount: s.amount || null,
-          share_class: s.share_class || null,
-          address: s.remarks || null, // Best effort mapping
-          confidence: 0.9,
-          evidence_refs: [],
-          unknown_reasons: []
-        })) || [],
-        ordering_detected: 'UNKNOWN',
-        ownership_basis_detected: 'UNKNOWN',
-        normalization_notes: []
-      };
+      // Step 3: Re-validate final result
+      // ... (Proceed with original logic using normalizedDoc) ...
+      const validationReport = validateNormalized(normalizedDoc!);
 
-      // [Deterministic Fix] Fast Track도 멀티에이전트와 동일한 지분율 산출 로직 적용
-      normalizedDoc.shareholders = calculateEffectiveRatios(normalizedDoc.shareholders, normalizedDoc.document_properties);
-
-      // Step 3: Enforce Programmatic Validation (Deterministic Control)
-      const validationReport = validateNormalized(normalizedDoc);
-      console.log(`[Orchestrator] Run ${runId}: Programmatic Validation Status = ${validationReport.status}`);
+      console.log(`[Orchestrator] Run ${runId}: Final Validation Status = ${validationReport.status}`);
 
       if (validationReport.status === 'NEED_HITL') {
         const triggers = validationReport.triggers.filter(t => t.severity === 'BLOCKER');
@@ -272,22 +307,23 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         await addAgentLog(runId, 'FastExtractor', 'WARNING', '정합성 검증 실패', reason);
 
         const hitlPacket = await createHITLPacket(runId, 'FastExtractor', {
-          normalized: normalizedDoc,
+          normalized: normalizedDoc!,
           triggers: validationReport.triggers
         }, {
-          company_name: normalizedDoc.document_properties.company_name,
+          company_name: normalizedDoc!.document_properties.company_name,
           document_date: fastResult.document_info?.document_date || null,
-          shareholder_names: normalizedDoc.shareholders.map(s => s.name || 'UNKNOWN')
+          shareholder_names: normalizedDoc!.shareholders.map(s => s.name || 'UNKNOWN')
         });
         await updateRunStatus(runId, 'hitl', 'FastExtractor');
         emitHITLRequired(runId, hitlPacket);
         return;
       }
 
-      // Step 4: Final Insight Generation (Mapping to final output)
-      // Safety: Combine AI-identified beneficial owners with programmatic filtering of the full list
+      // Step 4: Final Insight Generation
+      // ... (Original logic using normalizedDoc) ...
+      // Need to populate programmaticallyIdentifiedBO using normalizedDoc
       const aiIdentifiedBO = fastResult.over_25_percent_holders || [];
-      const programmaticallyIdentifiedBO = (fastResult.shareholders || [])
+      const programmaticallyIdentifiedBO = (normalizedDoc!.shareholders || [])
         .filter(s => s.ratio !== null && s.ratio >= 25)
         .map(s => ({
           name: s.name,
@@ -296,7 +332,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
           entity_type: s.entity_type
         }));
 
-      // Merge and deduplicate by name (or identifier if available)
+      // Merge and deduplicate
       const mergedBO = [...aiIdentifiedBO];
       programmaticallyIdentifiedBO.forEach(p => {
         if (!mergedBO.find(m => m.name === p.name)) {
@@ -304,9 +340,9 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         }
       });
 
-      // [Fallback Logic] 만약 25% 이상이 한 명도 없으면, 전체 중 가장 지분율이 높은 1인을 선정
-      if (mergedBO.length === 0 && (fastResult.shareholders || []).length > 0) {
-        const sortedAll = [...(fastResult.shareholders || [])].sort((a, b) => (b.ratio || 0) - (a.ratio || 0));
+      // [Fallback Logic] Use normalizedDoc
+      if (mergedBO.length === 0 && (normalizedDoc!.shareholders || []).length > 0) {
+        const sortedAll = [...(normalizedDoc!.shareholders || [])].sort((a, b) => (b.ratio || 0) - (a.ratio || 0));
         const top1 = sortedAll[0];
         if (top1 && (top1.ratio || 0) > 0) {
           mergedBO.push({
@@ -452,13 +488,14 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
       // STAGE E: Validator
       currentStage = 'E';
       validationReport = await runStageE(runId, normalizedDoc);
-      if (!validationReport || validationReport.status !== 'PASS') {
-        // If status is NEED_HITL or REJECT, runStageE already updated run status and emitted events.
-        // We must stop here to allow for human review or reflect failure.
-        console.log(`[Orchestrator] Validation failed or HITL required (status: ${validationReport?.status}). Stopping run ${runId}.`);
+
+      if (!validationReport || validationReport.status === 'REJECT') {
+        console.log(`[Orchestrator] Validation REJECTED. Stopping run ${runId}.`);
         return;
       }
+
       completedStages.push('E');
+      // Even if status is 'NEED_HITL', we proceed to INSIGHTS so the Analyst can explain the reason.
     }
 
     // ============================================
@@ -1195,6 +1232,17 @@ async function runStageINSIGHTS(
 
     completeAgentLog(runId, 'INS_Analyst', isDecidable ? 'SUCCESS' : 'FAILED',
       isDecidable ? `분석 완료 - 25% 이상 주주: ${over25List}` : `분석 불가 - 사유: ${answerSet.validation_summary.decidability.reason}`);
+
+    // [FIX] If validation report was NEED_HITL, maintain hitl status instead of 'completed'
+    if (validationReport.status === 'NEED_HITL') {
+      await updateRunStatus(runId, 'hitl');
+      // No emitCompleted here, as it's waiting for human.
+      console.log(`[Orchestrator] Run ${runId} paused for HITL after INSIGHTS explanation.`);
+    } else {
+      await updateRunStatus(runId, 'completed');
+      emitCompleted(runId);
+      console.log(`[Orchestrator] Run ${runId} COMPLETED in ${Date.now() - stageStart} ms`);
+    }
 
     return answerSet;
   } catch (err: any) {

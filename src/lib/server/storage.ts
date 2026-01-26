@@ -60,17 +60,36 @@ async function ensureDirs() {
   isDirsInitialized = true;
 }
 
-// 헬퍼: 파일 기반 저장/로드 (Idempotency 강화: Atomic Write)
+// 헬퍼: 파일 기반 저장/로드 (Idempotency 강화: Atomic Write + Retry for Windows)
 async function _save<T>(dir: string, key: string, data: T): Promise<void> {
   await ensureDirs();
   const filePath = join(dir, `${key}.json`);
-  const tempPath = `${filePath}.${uuidv4()}.tmp`; // 고유한 임시 파일명
+  const tempPath = `${filePath}.${uuidv4()}.tmp`;
 
   try {
     // 1. 임시 파일에 쓰기
     await writeFile(tempPath, JSON.stringify(data, null, 2));
-    // 2. 이름 변경 (Atomic Move)
-    await rename(tempPath, filePath);
+
+    // 2. 이름 변경 (Atomic Move + Windows Retry Logic)
+    // Windows에서는 다른 프로세스가 파일을 읽고 있을 때 EPERM 오류가 발생할 수 있음
+    let retryCount = 0;
+    const MAX_RETRIES = 5;
+
+    while (retryCount < MAX_RETRIES) {
+      try {
+        await rename(tempPath, filePath);
+        return; // 성공 시 종료
+      } catch (err: any) {
+        if (err.code === 'EPERM' || err.code === 'EBUSY') {
+          retryCount++;
+          if (retryCount >= MAX_RETRIES) throw err;
+          // 짧게 대기 후 재시도
+          await new Promise(resolve => setTimeout(resolve, 100));
+          continue;
+        }
+        throw err;
+      }
+    }
   } catch (error) {
     // 실패 시 임시 파일 삭제 시도
     try { await unlink(tempPath); } catch { }

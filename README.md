@@ -1,5 +1,5 @@
 <!-- File: README.md -->
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.2
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.3
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
@@ -121,13 +121,14 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 - **Rule: E-SUM-001 (수치 무결성)**: 모든 주주의 주식수 합계가 문서 상단에 명시된 '총발행주식수'와 정확히 일치하는지 검증합니다.
 - **Rule: E-ID-002 (1:1 식별)**: 주주의 명수와 유효한 식별번호의 개수가 1:1로 대응되는지 확인하여 동명이인 혼동을 방지합니다.
 
-### 📊 Step 5. Analyst (인사이트 및 리포팅)
-**"Actionable Data."**
-검증된 데이터를 사용자가 활용 가능한 형태로 가공합니다.
+### 📊 Step 5. Analyst (종합 인사이터)
+**"AI reasoning based on structured evidence."**
+검증된 데이터와 각 단계의 판단 근거(JSON)를 바탕으로, AI가 최종적으로 사람이 이해하기 쉬운 언어로 요약/설명합니다.
 
-- **25% Rule Algorithm**: 전체 지분율 중 25% 이상을 보유한 **실소유주(Beneficial Owner)**를 선별합니다.
-- **Sorting**: 지분율 내림차순(Desc) 정렬을 통해 주요 주주를 상단에 배치합니다.
-- **User Alerting**: 성명 교정이 발생한 주주명 옆에 **"(확인 필요)"** 배지를 부착하여 사용자의 주의를 환기시킵니다.
+- **AI Synthesis**: 이전 단계(Gatekeeper~Validator)에서 도출된 모든 판단 근거와 JSON 데이터를 취합합니다.
+- **AI Re-explanation**: 취합된 정밀 데이터를 다시 AI에 전달하여, "왜 이런 결과가 나왔는지"에 대한 논리적 근거를 자연어로 재구성합니다.
+- **25% Rule Algorithm**: 지분율 25% 이상 실소유주(BO)를 판별하고 내림차순 정렬합니다.
+- **Decision Support**: 성명 교정 내역, 지분율 역산 근거 등을 투명하게 공개하여 사용자의 최종 판단을 돕습니다.
 
 ---
 
@@ -139,8 +140,8 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 
 ---
 
-**Last Updated**: 2026-01-25
-**System Version**: 2.2 (Full Feature Documentation)
+**Last Updated**: 2026-01-26
+**System Version**: 2.3 (Full Feature Documentation)
 **Maintainer**: JuJu Dev Team
 
 ---

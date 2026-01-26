@@ -116,6 +116,12 @@ AI는 종종 하단의 지분 리스트(테이블)에 압도되어 상단의 중
   - 식별번호 (identifier) - 주민등록번호/사업자등록번호
 - **지분 추론 (Inference)**: 
   - 지분율 정보는 주식수(주), 금액(원), 또는 직접 표시된 지분율(%) 등 다양한 지표에서 추론할 수 있습니다.
+  - **[중요] 단일 주주 (1인 주주) 처리**:
+    - 주주가 단 1명만 존재하는 경우, 해당 주주의 지분율은 **무조건 100%**입니다.
+    - AI가 지분율을 찾지 못했다고 해서 **0%**나 **null**로 반환하면 안 됩니다. 주식수가 있다면 반드시 100%로 추론하십시오.
+  - **[중요] 지분율 합계 검증**: 
+    - 추출된 모든 주주의 지분율 합계는 반드시 **100%**가 되어야 합니다.
+    - 만약 합계가 100%가 되지 않는다면, 주식수 비례 배분 등을 통해 오차를 보정하여 100%를 맞추십시오.
   - 이들 지표가 공존할 경우, 서로 모순되지 않는지 확인하고 가장 확실한 값을 기준으로 추출하십시오.
 - **식별번호 중요 및 정규화 규칙(Identifier Normalization)**: 
   - 대주주 및 25% 이상 보유자의 **식별번호(주민번호 앞자리+뒷자리, 또는 사업자번호)**는 *무조건* 찾아내십시오.
@@ -195,7 +201,8 @@ AI는 종종 하단의 지분 리스트(테이블)에 압도되어 상단의 중
 `;
 
 export async function runFastExtractor(
-  images: { base64: string, mimeType: string }[]
+  images: { base64: string, mimeType: string }[],
+  feedback?: string
 ): Promise<{
   is_valid: boolean;
   shareholders: any[];
@@ -218,12 +225,16 @@ export async function runFastExtractor(
     imageUrl: `data:${img.mimeType};base64,${img.base64}`
   }));
 
+  const userPrompt = feedback
+    ? `이전 분석에서 다음 문제가 발견되었습니다: "${feedback}". \n문제를 수정하여 주주명부 데이터를 다시 정밀하게 추출해줘. 반드시 JSON 형식으로만 응답하세요.`
+    : '이 주주명부 문서(모든 페이지)를 분석하여 데이터를 추출해줘. 반드시 JSON 형식으로만 응답하세요.';
+
   const input = [
     {
       role: 'user' as const,
       content: [
         ...imageContents,
-        { type: 'input_text' as const, text: '이 주주명부 문서(모든 페이지)를 분석하여 데이터를 추출해줘. 반드시 JSON 형식으로만 응답하세요.' }
+        { type: 'input_text' as const, text: userPrompt }
       ]
     }
   ];

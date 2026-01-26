@@ -20,7 +20,7 @@ export function calculateEffectiveRatios(
     return shareholders.map(s => {
         let effectiveRatio: number | null = null;
 
-        // Strategy 1: Declared Ratio
+        // Strategy 1: Declared Ratio (Normal Case)
         if (s.ratio !== null) {
             effectiveRatio = s.ratio;
         }
