@@ -35,9 +35,13 @@ import { writeFile, mkdir, readFile, readdir, unlink, rename } from 'fs/promises
 import { join, dirname } from 'path';
 import os from 'os';
 
-const DATA_DIR = join(process.cwd(), 'data');
-const UPLOAD_DIR = join(process.cwd(), 'uploads');
-const LOG_DIR = join(process.cwd(), 'logs');
+// detect if running on Vercel (read-only file system except for /tmp)
+const IS_VERCEL = process.env.VERCEL === '1';
+const BASE_DIR = IS_VERCEL ? os.tmpdir() : process.cwd();
+
+const DATA_DIR = join(BASE_DIR, 'data');
+const UPLOAD_DIR = join(BASE_DIR, 'uploads');
+const LOG_DIR = join(BASE_DIR, 'logs');
 
 // 디렉토리 구조
 const DIRS = {
@@ -132,11 +136,12 @@ async function _list<T>(dir: string): Promise<T[]> {
 /**
  * 새 Run 생성
  */
-export async function createRun(filePaths: string[]): Promise<Run> {
+export async function createRun(filePaths: string[], executionMode?: 'FAST' | 'MULTI_AGENT'): Promise<Run> {
   const run: Run = {
     id: uuidv4(),
     status: 'pending',
     files: filePaths,
+    execution_mode: executionMode,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };

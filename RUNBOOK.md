@@ -93,6 +93,11 @@ npx vercel --prod
 ### Vercel 대시보드 설정
 배포 시 **Environment Variables**에 `OPENAI_API_KEY`를 반드시 등록해야 합니다.
 
+> [!IMPORTANT]
+> **Vercel 파일 시스템 제약 사항**:
+> 버셀과 같은 서버리스 환경은 파일 시스템이 읽기 전용이기 때문에, 쓰기가 가능한 임시 디렉토리(`/tmp`)를 사용하도록 코드를 수정했습니다. (`storage.ts` 참조)
+> `/tmp` 디렉토리의 데이터는 함수 실행 간에 유지되지 않으며, 배포 시마다 초기화되는 휘발성 데이터입니다. 영구 저장이 필요한 경우 외부 DB(Postgres, Redis 등) 연결이 필요합니다.
+
 ---
 
 ## 아키텍처 (Fast Track)

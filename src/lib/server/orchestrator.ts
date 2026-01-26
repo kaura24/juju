@@ -101,6 +101,7 @@ let isInitialized = false;
  */
 export async function initializeOrchestrator(): Promise<void> {
   if (isInitialized) return;
+  console.log('[Orchestrator] Initializing...');
 
   const { cleanupRunningSessions } = await import('./storage');
   const cleanedCount = await cleanupRunningSessions();
@@ -121,6 +122,7 @@ export async function initializeOrchestrator(): Promise<void> {
   }
 
   isInitialized = true;
+  console.log('[Orchestrator] Initialized successfully');
 }
 
 // ============================================
@@ -143,13 +145,14 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
   const errors: string[] = [];
 
   try {
+    // 1. Initial Logging & Status Update (Early update to avoid "Pending" hang in UI)
     // Ensure initialization on first run
     await initializeOrchestrator();
+    await updateRunStatus(runId, 'running');
 
     console.log(`[Orchestrator-DEBUG] executeRun called with runId=${runId}, mode="${mode}"`);
     console.log(`[Orchestrator] Starting run ${runId} in ${mode} mode`);
 
-    // 1. Initial Logging (기존 로그 덮어쓰기 - 재시도 시 일관성 유지)
     await initRunLog(runId);
     await startAgentLog(runId, 'Orchestrator');
     await addAgentLog(runId, 'Orchestrator', 'INFO', `실행 시작(${mode})`, `${mode} 모드로 분석을 시작합니다 (멱등적 실행)`);
@@ -363,8 +366,8 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         over_25_percent: mergedBO
           .sort((a, b) => (b.ratio || 0) - (a.ratio || 0)) // 내림차순 정렬 (Descending)
           .map(h => {
-            const matchedRecord = fastResult.shareholders?.find(s => s.identifier === h.identifier && h.identifier !== null)
-              || fastResult.shareholders?.find(s => s.name === h.name);
+            const matchedRecord = fastResult.shareholders?.find((s: any) => s.identifier === h.identifier && h.identifier !== null)
+              || fastResult.shareholders?.find((s: any) => s.name === h.name);
 
             return {
               name: h.name || matchedRecord?.name || 'UNKNOWN',

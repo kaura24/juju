@@ -9,10 +9,18 @@
   } from "$lib/types";
   import RunSummary from "$lib/components/RunSummary.svelte";
   import RunLogStream from "$lib/components/RunLogStream.svelte";
+  import DebugPanel from "$lib/components/DebugPanel.svelte";
 
   // State (Svelte 5 Runes)
   let finalAnswer: InsightsAnswerSet | null = $state(null);
   let hitlPacket: HITLPacket | null = $state(null);
+
+  // Helper for logging to debug panel
+  const dlog = (type: any, msg: string, data?: any) => {
+    if (typeof window !== "undefined" && (window as any).__JUJU_DEBUG__) {
+      (window as any).__JUJU_DEBUG__.log(type, msg, data);
+    }
+  };
   let status:
     | "loading"
     | "pending"
@@ -29,6 +37,7 @@
 
   // Handler
   function handleSSEMessage(data: SSEMessage) {
+    dlog("sse", `Received: ${data.type}`, data.payload);
     if (data.type === "completed") {
       const payload = data.payload as { message?: string };
       if (payload.message?.startsWith("Connected")) {
@@ -75,18 +84,25 @@
   // Initial Load
   async function loadInitialData() {
     try {
+      dlog("api", `Fetching run metadata: /api/runs/${runId}`);
       const response = await fetch(`/api/runs/${runId}`);
       if (!response.ok) throw new Error("Run not found");
       const data = await response.json();
+      dlog("api", `Current run status: ${data.run.status}`, data.run);
 
       status = data.run.status;
       if (data.run.model) connectedModel = data.run.model;
 
       // Load existing logs to populate pipeline
       try {
+        dlog("api", `Fetching logs: /api/runs/${runId}/logs`);
         const logRes = await fetch(`/api/runs/${runId}/logs`);
         if (logRes.ok) {
           const logData = await logRes.json();
+          dlog(
+            "api",
+            `Loaded ${logData.data?.agents?.length || 0} agents' logs`,
+          );
           // Flatten AgentLogCollection[] to LogEntry[]
           if (logData.data && logData.data.agents) {
             const flatLogs: any[] = [];
@@ -123,29 +139,71 @@
           finalAnswer = r.result;
         }
       }
+
+      // If still pending, trigger execution (Self-healing for Vercel cold starts/missed triggers)
+      if (data.run.status === "pending") {
+        dlog("poll", "Run is pending, triggering execution...");
+        fetch(`/api/runs/${runId}/execute`, { method: "POST" }).catch((err) =>
+          dlog("error", "Failed to trigger execution", err),
+        );
+      }
     } catch (e) {
       status = "error";
+      dlog("error", "Failed to load initial data", e);
     }
   }
 
+  let pollInterval: any;
+
   function connectSSE() {
     if (eventSource) eventSource.close();
+    dlog("sse", `Connecting: /api/runs/${runId}/events`);
     eventSource = new EventSource(`/api/runs/${runId}/events`);
     eventSource.onmessage = (e) => handleSSEMessage(JSON.parse(e.data));
     eventSource.onopen = () => {
+      dlog("sse", "Connection established");
       console.log("[SSE] Connected");
+      // Stop polling if SSE is working (optional, but keep for safety)
+      // Actually, keep polling since Vercel SSE can be flaky or hits different instances
     };
     eventSource.onerror = () => {
-      if (status === "running") status = "error";
-      eventSource?.close();
+      dlog("error", "SSE Error or connection lost");
+      console.warn("[SSE] Error or connection lost");
+      if (status === "running") {
+        // Don't set to error immediately, let polling try
+      }
     };
+  }
+
+  function startPolling() {
+    if (pollInterval) clearInterval(pollInterval);
+    dlog("poll", "Polling started (5s interval)");
+    pollInterval = setInterval(async () => {
+      if (
+        status === "completed" ||
+        status === "error" ||
+        status === "rejected"
+      ) {
+        clearInterval(pollInterval);
+        return;
+      }
+      dlog("poll", "Polling triggered");
+      console.log("[Polling] Fetching updates...");
+      await loadInitialData();
+    }, 5000); // Poll every 5 seconds
   }
 
   onMount(() => {
     const init = async () => {
       await loadInitialData();
-      if (status === "running" || status === "loading" || status === "pending")
+      if (
+        status === "running" ||
+        status === "loading" ||
+        status === "pending"
+      ) {
         connectSSE();
+        startPolling();
+      }
     };
 
     init();
@@ -176,6 +234,7 @@
 
   onDestroy(() => {
     eventSource?.close();
+    if (pollInterval) clearInterval(pollInterval);
   });
 
   // Determine active agent (Svelte 5 Derived)
@@ -234,6 +293,9 @@
       />
     </section>
   </div>
+
+  <!-- Debug Monitor (Hidden by default, triggered by 🐞) -->
+  <DebugPanel {runId} />
 </main>
 
 <style>

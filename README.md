@@ -1,5 +1,5 @@
 <!-- File: README.md -->
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.3
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.4
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
@@ -140,8 +140,8 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 
 ---
 
-**Last Updated**: 2026-01-26
-**System Version**: 2.3 (Full Feature Documentation)
+**Last Updated**: 2026-01-27
+**System Version**: 2.4 (Vercel Stability & Self-Healing)
 **Maintainer**: JuJu Dev Team
 
 ---
@@ -177,6 +177,22 @@ PDF를 이미지로 변환하는 `scripts/pdf-to-images.cjs` 모듈은 Node.js �
 #### ⚠️ 유지보수 주의사항 (Maintenance Warning)
 - **`package.json`**: `pdfjs-dist` 버전을 **`^3.11.174`**로 유지하십시오. 캐럿(`^`)이 있더라도 메이저 버전 업데이트는 피해야 합니다.
 - **`scripts/pdf-to-images.cjs`**: 이 파일의 로깅 로직(`console.log` 오버라이딩)을 제거하지 마십시오. 제거 시 다시 JSON 파싱 에러가 재발합니다.
+
+#### 2. Vercel Runtime Error (File System Permission)
+- **증상**: 배포 후 파일 업로드나 데이터 저장 시 `ENOENT: no such file or directory, mkdir '/var/task/uploads'` 에러 발생.
+- **원인**: Vercel과 같은 서버리스 환경은 파일 시스템이 **읽기 전용(Read-Only)**입니다. 프로젝트 루트 하위의 `uploads`, `data`, `logs` 디렉토리에 직접 쓰기가 불가능합니다.
+- **해결**: 서버리스 환경에서 유일하게 쓰기가 가능한 **임시 디렉토리 (`/tmp`, os.tmpdir())**를 사용하도록 `src/lib/server/storage.ts` 로직을 수정했습니다.
+  - Vercel 환경 감지: `process.env.VERCEL === '1' || process.env.VERCEL === 'true'`
+  - 기본 경로 전환: `IS_VERCEL ? os.tmpdir() : process.cwd()`
+
+### 🚀 [2026-01-27] Vercel Stability & Multi-Agent Reliability (v2.4)
+**서버리스 환경에서의 분석 중단 및 UI '대기 중' 프리징 현상 해결**
+
+1.  **Immediate Status Transition**: 분석 시작 즉시 상태를 `running`으로 전송하여 사용자 피드백 지연을 최소화했습니다.
+2.  **Persistent Execution Mode**: 업로드 시 선택한 모드(Fast/Multi)를 DB에 영구 저장하여, 세션 유실 시에도 동일한 모드로 재시작할 수 있게 했습니다.
+3.  **Self-Healing Detail Page**: 분석 상세 페이지 진입 시 상태가 `pending`인 경우, 시스템이 자동으로 분석 실행(Execute) 코드를 재트리거하는 클라이언트-서버 협업 로직을 구현했습니다.
+4.  **Client-Side Polling Fallback**: SSE(Server-Sent Events) 연결이 불안정한 환경에서도 5초 주기로 최신 상태를 강제 동기화하는 백업 메커니즘을 적용했습니다.
+5.  **Debug Monitor (🐞)**: 실시간 API 통신 및 SSE 이벤트를 모니터링할 수 있는 숨겨진 디버그 패널을 추가하여 운영 안정성을 확보했습니다.
 
 ---
 

@@ -1,7 +1,1 @@
-{
-    "functions": {
-        "src/routes/api/runs/[id]/execute/+server.ts": {
-            "maxDuration": 60
-        }
-    }
-}
+{}

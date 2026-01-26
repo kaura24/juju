@@ -137,6 +137,7 @@
       for (const file of files) {
         formData.append("files", file);
       }
+      formData.append("mode", mode);
 
       const response = await fetch("/api/runs", {
         method: "POST",

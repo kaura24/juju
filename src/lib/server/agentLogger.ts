@@ -76,7 +76,12 @@ import { saveRunLog, loadRunLog } from './storage';
 import { appendFile } from 'fs/promises';
 import { join } from 'path';
 
-const ERROR_LOG_PATH = join(process.cwd(), 'logs', 'server_error.log');
+import os from 'os';
+// detect if running on Vercel (read-only file system except for /tmp)
+// Check both '1' and 'true' for robustness
+const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
+const BASE_DIR = IS_VERCEL ? os.tmpdir() : process.cwd();
+const ERROR_LOG_PATH = join(BASE_DIR, 'logs', 'server_error.log');
 
 // In-Memory cache (still useful for speed, but synced to disk)
 const runLogs = new Map<string, RunLogReport>();
