@@ -141,7 +141,7 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 ---
 
 **Last Updated**: 2026-01-27
-**System Version**: 2.4 (Vercel Stability & Self-Healing)
+**System Version**: 2.4.0 (Commit: 9d13ecf) - Vercel Stability & Self-Healing
 **Maintainer**: JuJu Dev Team
 
 ---
