@@ -1,9 +1,17 @@
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.5
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.6.0 (juju-data integrated)
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
-## 🚀 v2.5 Major Update: Supabase Storage Integration
-**Vercel Serverless 환경의 파일 시스템 제약을 영구적으로 해결하기 위해 Supabase Storage를 전면 도입했습니다.**
+## 🚀 v2.6.0 Major Update: Full Persistence Architecture (juju-data)
+**Vercel Serverless 환경의 파일 시스템 제약을 영구적으로 해결하기 위해 Supabase Storage 기반의 Full Persistence 아키텍처를 도입했습니다.**
+
+### 💾 juju-data Bucket Integration
+기존에는 이미지와 결과물이 서로 다른 버킷 혹은 `/tmp`에 파편화되어 있었으나, v2.6.0부터는 `juju-data` 버킷을 중심으로 모든 데이터가 관리됩니다.
+
+1.  **Metadata Persistence**: 분석 진행 상태(Run), 이벤트 로그, 분석 결과(JSON)를 `juju-data` 버킷의 전용 폴더에 저장합니다.
+2.  **Raw File Persistence**: 업로드된 원본 파일(PDF/이미지)을 `juju-data/uploads`에 보관하여, 서버리스 인스턴스가 바뀌어도 분석 프로세스가 중단되지 않습니다.
+3.  **Unified Storage Layer**: 로컬 개발 시에는 파일 시스템을, Vercel 배포 시에는 Supabase를 자동으로 사용하는 하이브리드 로직이 적용되었습니다.
+
 
 ### 💾 Supabase Storage Architecture
 기존 `/tmp` 디렉토리를 사용하는 임시 방편을 넘어, 엔터프라이즈급 안정을 위한 **클라우드 스토리지 파이프라인**을 구축했습니다.
@@ -158,7 +166,7 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 ---
 
 **Last Updated**: 2026-01-27
-**System Version**: 2.5.0 (Supabase Integrated) - Vercel & Supabase Hybrid Architecture
+**System Version**: 2.6.0 (juju-data Integrated) - Vercel & Supabase Hybrid Architecture
 **Maintainer**: JuJu Dev Team
 
 ---
