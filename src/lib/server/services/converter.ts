@@ -139,30 +139,72 @@ export async function convertTiffToImages(filePath: string): Promise<{ base64: s
 /**
  * 파일 확장자에 따라 적절한 분석용 이미지 추출 (멀티파트 가능성 고려)
  */
-export async function prepareImagesForAnalysis(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
-    const ext = filePath.toLowerCase().split('.').pop();
+// Helper to download URL to tmp file
+async function downloadUrlToTmp(url: string, ext: string): Promise<string> {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
 
-    if (ext === 'pdf') {
-        return await convertPdfToImages(filePath);
-    } else if (ext === 'tif' || ext === 'tiff') {
-        return await convertTiffToImages(filePath);
-    } else {
-        // 일반 이미지
-        const buffer = await readFile(filePath);
-        let base64 = buffer.toString('base64');
-        const mimeTypes: Record<string, string> = {
-            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
-            'gif': 'image/gif', 'webp': 'image/webp'
-        };
-        let mimeType = mimeTypes[ext || ''] || 'image/png';
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const tempName = `download_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+    const { tmpdir } = await import('os');
+    const tempPath = join(tmpdir(), tempName);
 
-        // Resize check
-        base64 = await resizeImageIfNeeded(base64, mimeType);
+    await import('fs/promises').then(fs => fs.writeFile(tempPath, buffer));
+    return tempPath;
+}
 
-        // Ensure mimeType is updated to jpeg if we converted it
-        // resizeImageIfNeeded always returns jpeg base64
-        mimeType = 'image/jpeg';
+/**
+ * 파일 확장자에 따라 적절한 분석용 이미지 추출 (멀티파트 가능성 고려)
+ * URL이 입력된 경우 (Vercel 환경), 임시 파일로 다운로드 후 처리
+ */
+export async function prepareImagesForAnalysis(filePathOrUrl: string): Promise<{ base64: string; mimeType: string }[]> {
+    let targetPath = filePathOrUrl;
+    let isTemp = false;
 
-        return [{ base64, mimeType }];
+    try {
+        // URL 감지 및 다운로드
+        if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
+            console.log(`[Converter] Downloading remote file: ${filePathOrUrl}`);
+            const ext = filePathOrUrl.split('?')[0].split('.').pop() || 'tmp';
+            targetPath = await downloadUrlToTmp(filePathOrUrl, ext);
+            isTemp = true;
+        }
+
+        const ext = targetPath.toLowerCase().split('.').pop();
+        let result: { base64: string; mimeType: string }[] = [];
+
+        if (ext === 'pdf') {
+            result = await convertPdfToImages(targetPath);
+        } else if (ext === 'tif' || ext === 'tiff') {
+            result = await convertTiffToImages(targetPath);
+        } else {
+            // 일반 이미지
+            const buffer = await readFile(targetPath);
+            let base64 = buffer.toString('base64');
+            const mimeTypes: Record<string, string> = {
+                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+                'gif': 'image/gif', 'webp': 'image/webp'
+            };
+            let mimeType = mimeTypes[ext || ''] || 'image/png';
+
+            // Resize check
+            base64 = await resizeImageIfNeeded(base64, mimeType);
+            mimeType = 'image/jpeg'; // Resized is always jpeg
+
+            result = [{ base64, mimeType }];
+        }
+
+        return result;
+
+    } finally {
+        // 임시 파일 정리
+        if (isTemp) {
+            try {
+                await import('fs/promises').then(fs => fs.unlink(targetPath));
+                console.log(`[Converter] Cleaned up temp file: ${targetPath}`);
+            } catch (e) {
+                console.warn(`[Converter] Failed to cleanup temp file: ${targetPath}`);
+            }
+        }
     }
 }

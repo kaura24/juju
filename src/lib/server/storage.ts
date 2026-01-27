@@ -446,9 +446,24 @@ export async function listPendingHITLPackets(): Promise<HITLPacket[]> {
  * 업로드된 파일 저장
  */
 export async function saveFile(file: File): Promise<string> {
-  await ensureDirs();
   const buffer = Buffer.from(await file.arrayBuffer());
   const filename = `${uuidv4()}_${file.name}`;
+
+  if (IS_VERCEL) {
+    try {
+      const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
+      const uploadPath = `uploads/${filename}`;
+      await uploadRawFile(buffer, uploadPath, file.type || 'application/octet-stream');
+      return getRawFileUrl(uploadPath);
+    } catch (e) {
+      console.error('[Storage] Supabase Upload Failed, falling back to temp:', e);
+      // Fallback is tricky if we want persistent URL. But better than crash.
+      // Actually throw is better so we know it failed.
+      throw e;
+    }
+  }
+
+  await ensureDirs();
   const filepath = join(UPLOAD_DIR, filename);
   await writeFile(filepath, buffer);
   return filepath;
@@ -458,13 +473,26 @@ export async function saveFile(file: File): Promise<string> {
  * Base64 이미지로 파일 저장
  */
 export async function saveBase64Image(base64Data: string, mimeType: string): Promise<string> {
-  await ensureDirs();
   const extension = mimeType.split('/')[1] || 'png';
   const filename = `${uuidv4()}.${extension}`;
-  const filepath = join(UPLOAD_DIR, filename);
 
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
+
+  if (IS_VERCEL) {
+    try {
+      const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
+      const uploadPath = `uploads/${filename}`;
+      await uploadRawFile(buffer, uploadPath, mimeType);
+      return getRawFileUrl(uploadPath);
+    } catch (e) {
+      console.error('[Storage] Supabase Base64 Upload Failed:', e);
+      throw e;
+    }
+  }
+
+  await ensureDirs();
+  const filepath = join(UPLOAD_DIR, filename);
   await writeFile(filepath, buffer);
   return filepath;
 }

@@ -108,3 +108,32 @@ export async function listJsonFiles(folder: string): Promise<string[]> {
 
     return data.map(file => file.name);
 }
+
+/**
+ * 일반 파일(PDF, Raw Image 등)을 Supabase Storage에 업로드합니다.
+ * (Bucket: juju-data)
+ */
+export async function uploadRawFile(fileBuffer: Buffer, fileName: string, contentType: string) {
+    const { data, error } = await supabase.storage
+        .from('juju-data')
+        .upload(fileName, fileBuffer, {
+            contentType,
+            upsert: true
+        });
+
+    if (error) {
+        console.error(`[SupabaseStorage] Failed to upload Raw File to ${fileName}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * juju-data 버킷의 파일에 대한 Public URL을 가져옵니다.
+ */
+export function getRawFileUrl(path: string) {
+    const { data } = supabase.storage
+        .from('juju-data')
+        .getPublicUrl(path);
+
+    return data.publicUrl;
+}
