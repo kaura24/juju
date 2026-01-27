@@ -20,6 +20,7 @@
 	"dependencies": {
 		"@napi-rs/canvas": "^0.1.65",
 		"@openai/agents": "^0.4.1",
+		"@supabase/supabase-js": "^2.93.1",
 		"dotenv": "^17.2.3",
 		"openai": "^4.77.0",
 		"pdfjs-dist": "^3.11.174",

@@ -515,6 +515,7 @@ export interface Run {
   current_stage?: StageName;
   error_message?: string;
   execution_mode?: 'FAST' | 'MULTI_AGENT';
+  storage_provider?: 'SUPABASE' | 'LOCAL';
 }
 
 // ============================================

@@ -64,6 +64,38 @@ async function loadImageAsBase64(filePath: string): Promise<{ base64: string; mi
   return { base64, mimeType: mimeTypes[ext || ''] || 'image/png' };
 }
 
+/**
+ * 이미지를 Supabase Storage에 업로드하고 Public URL 배열을 반환합니다.
+ */
+async function uploadImagesToSupabase(runId: string, images: { base64: string; mimeType: string }[]): Promise<string[]> {
+  const { env } = await import('$env/dynamic/private');
+  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+    console.warn('[Orchestrator] Supabase config missing, skipping cloud upload.');
+    return [];
+  }
+
+  try {
+    const { uploadImage, getPublicUrl } = await import('./services/supabase_storage');
+    const urls: string[] = [];
+
+    for (let i = 0; i < images.length; i++) {
+      const img = images[i];
+      const buffer = Buffer.from(img.base64, 'base64');
+      const fileName = `${runId}/page_${i + 1}.${img.mimeType.split('/')[1] || 'png'}`;
+
+      await uploadImage(buffer, fileName, img.mimeType);
+      const url = getPublicUrl(fileName);
+      urls.push(url);
+    }
+
+    return urls;
+  } catch (error) {
+    console.error('[Orchestrator] Supabase Upload failed:', error);
+    // User requested: "Don't bend to local" -> throwing error instead of fallback if config exists
+    throw new Error(`Supabase upload failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
 // ============================================
 // Session Cancellation Tracking
 // ============================================
@@ -165,6 +197,21 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
 
     if (images.length === 0) throw new Error('No images extracted from files or file is corrupted');
 
+    // ============================================
+    // Supabase Upload (New)
+    // ============================================
+    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
+    const imageUrls = await uploadImagesToSupabase(runId, images);
+
+    const { updateRunStorageProvider } = await import('./storage');
+    if (imageUrls.length > 0) {
+      await updateRunStorageProvider(runId, 'SUPABASE');
+      await addAgentLog(runId, 'Orchestrator', 'SUCCESS', '이미지 업로드 완료', `${imageUrls.length}개 페이지 업로드됨 (클라우드 모드)`);
+    } else {
+      await updateRunStorageProvider(runId, 'LOCAL');
+      await addAgentLog(runId, 'Orchestrator', 'WARNING', '이미지 업로드 건너뜀', 'Supabase 설정이 되어있지 않아 로컬 데이터로 분석을 계속합니다 (로컬 모드)');
+    }
+
     let normalizedDoc: NormalizedDoc | null = null;
     let extractionCountVal = 0;
     let validationReport: ValidationReport | null = null;
@@ -207,7 +254,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         }
 
         console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
-        fastResult = await runFastExtractor(images, feedback);
+        fastResult = await runFastExtractor(images, feedback, imageUrls);
 
         // AI Initial Gatekeeping
         if (!fastResult.is_valid) {
@@ -469,14 +516,14 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
       // STAGE B: Gatekeeper
       currentStage = 'B';
       if (isCancelled(runId)) throw new Error('Run cancelled by user');
-      const assessment = await runStageB(runId, images);
+      const assessment = await runStageB(runId, images, imageUrls);
       if (!assessment) return;
       completedStages.push('B');
 
       // STAGE C: Extractor
       currentStage = 'C';
       if (isCancelled(runId)) throw new Error('Run cancelled by user');
-      const extractorOutput = await runStageC(runId, images, assessment);
+      const extractorOutput = await runStageC(runId, images, assessment, imageUrls);
       if (!extractorOutput) return;
       completedStages.push('C');
       extractionCountVal = extractorOutput.records.length;
@@ -525,7 +572,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
           unknown_entity_count: 0
         }
       };
-      const insights = await runStageINSIGHTS(runId, normalizedDoc, finalValidationReport);
+      const insights = await runStageINSIGHTS(runId, normalizedDoc, finalValidationReport, imageUrls);
 
       completedStages.push('INSIGHTS');
 
@@ -596,7 +643,8 @@ function getNextSteps() { return [] }
 
 async function runStageB(
   runId: string,
-  images: { base64: string; mimeType: string }[]
+  images: { base64: string; mimeType: string }[],
+  imageUrls?: string[]
 ): Promise<DocumentAssessment | null> {
   console.log(`[Orchestrator] Stage B for run ${runId}`);
 
@@ -607,8 +655,8 @@ async function runStageB(
 
   await updateRunStatus(runId, 'running', 'B');
 
-  addAgentLog(runId, 'B_Gatekeeper', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 문서를 분석합니다 (페이지 수: ${images.length})`);
-  const assessment = await runGatekeeperAgent(images);
+  addAgentLog(runId, 'B_Gatekeeper', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 문서를 분석합니다 (페이지 수: ${images.length}, URL: ${imageUrls?.length || 0})`);
+  const assessment = await runGatekeeperAgent(images, imageUrls);
   await saveArtifact(runId, 'B', 'assessment', assessment);
 
   // 분석 결과 로깅
@@ -683,7 +731,8 @@ async function runStageB(
 async function runStageC(
   runId: string,
   images: { base64: string; mimeType: string }[],
-  assessment: DocumentAssessment
+  assessment: DocumentAssessment,
+  imageUrls?: string[]
 ): Promise<ExtractorOutput | null> {
   console.log(`[Orchestrator] Stage C for run ${runId}`);
 
@@ -694,8 +743,8 @@ async function runStageC(
 
   await updateRunStatus(runId, 'running', 'C');
 
-  addAgentLog(runId, 'C_Extractor', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 테이블 데이터를 추출합니다 (페이지 수: ${images.length})`);
-  const extractorOutput = await runExtractorAgent(images, assessment);
+  addAgentLog(runId, 'C_Extractor', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 테이블 데이터를 추출합니다 (페이지 수: ${images.length}, URL: ${imageUrls?.length || 0})`);
+  const extractorOutput = await runExtractorAgent(images, assessment, imageUrls);
   await saveArtifact(runId, 'C', 'extractor_output', extractorOutput);
 
   // 추출 결과 로깅
@@ -1150,7 +1199,8 @@ async function runStageE(
 async function runStageINSIGHTS(
   runId: string,
   normalizedDoc: NormalizedDoc,
-  validationReport: ValidationReport
+  validationReport: ValidationReport,
+  imageUrls?: string[]
 ): Promise<InsightsAnswerSet> {
   console.log(`\n\n========================================`);
   console.log(`[Orchestrator] Stage INSIGHTS for run ${runId}`);
@@ -1176,7 +1226,7 @@ async function runStageINSIGHTS(
   const analyst = new AnalystService();
   console.log(`[INSIGHTS] Step 5: Calling analyst.generateReport()...`);
   try {
-    const answerSet = await analyst.generateReport(normalizedDoc, validationReport);
+    const answerSet = await analyst.generateReport(normalizedDoc, validationReport, imageUrls);
 
     await saveArtifact(runId, 'INSIGHTS', 'answer_set', answerSet);
 

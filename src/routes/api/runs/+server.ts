@@ -7,8 +7,9 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createRun, saveFile, listRuns } from '$lib/server/storage';
+import { executeRun } from '$lib/server/orchestrator';
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async ({ request, platform }) => {
   try {
     const contentType = request.headers.get('content-type') || '';
     let filePaths: string[] = [];
@@ -53,6 +54,16 @@ export const POST: RequestHandler = async ({ request }) => {
 
     // Run 생성
     const run = await createRun(filePaths, mode);
+
+    // [FIX] Trigger execution immediately on the same instance to avoid Vercel FS isolation issues
+    // This allows the run to start even if the subsequent /execute request hits a different instance
+    const executionPromise = executeRun(run.id, run.execution_mode).catch(err => {
+         console.error(`[API] Background execution error:`, err);
+    });
+
+    if ((platform as any)?.waitUntil) {
+        (platform as any).waitUntil(executionPromise);
+    }
 
     return json({
       runId: run.id,

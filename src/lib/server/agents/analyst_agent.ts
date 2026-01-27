@@ -6,7 +6,15 @@ import type { NormalizedDoc, ValidationReport } from '$lib/types';
 import { ensureApiKey } from '../agents';
 
 const AnalystSynthesisSchema = z.object({
-    synthesis_reasoning: z.string().optional().default("분석 완료").describe("데이터 정합성 및 추출 결과에 대한 종합 분석 소견"),
+    synthesis_reasoning: z.union([
+        z.string(),
+        z.array(z.any()).transform(arr => {
+            return arr.map(item => {
+                if (typeof item === 'string') return item;
+                return JSON.stringify(item);
+            }).join('\n');
+        })
+    ]).optional().default("분석 완료").describe("데이터 정합성 및 추출 결과에 대한 종합 분석 소견"),
     synthesis_confidence: z.number().optional().default(0.5).describe("분석 결과에 대한 신뢰도 (0.0 ~ 1.0)"),
     is_decidable: z.boolean().optional().default(true).describe("최종적으로 이 문서를 확정된 주주명부로 볼 수 있는지 여부"),
     major_shareholder_name: z.string().nullable().optional().default(null).describe("판별된 최대주주 성명"),
@@ -60,7 +68,8 @@ const INSTRUCTIONS = `
 
 export async function runAnalystAgent(
     doc: NormalizedDoc,
-    validationReport: ValidationReport
+    validationReport: ValidationReport,
+    imageUrls?: string[]
 ): Promise<z.infer<typeof AnalystSynthesisSchema>> {
     console.log(`\n[AnalystAgent] ========== STARTING ==========`);
     console.log(`[AnalystAgent] doc exists: ${!!doc}`);
@@ -82,10 +91,16 @@ export async function runAnalystAgent(
     console.log(`[AnalystAgent] API Key ensured.`);
 
     console.log(`[AnalystAgent] Step 3: Building input...`);
+    const remoteImageContents = (imageUrls || []).map(url => ({
+        type: 'input_image' as const,
+        imageUrl: url
+    }));
+
     const input = [
         {
             role: 'user' as const,
             content: [
+                ...remoteImageContents,
                 {
                     type: 'input_text' as const,
                     text: `

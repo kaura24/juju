@@ -202,7 +202,8 @@ AI는 종종 하단의 지분 리스트(테이블)에 압도되어 상단의 중
 
 export async function runFastExtractor(
   images: { base64: string, mimeType: string }[],
-  feedback?: string
+  feedback?: string,
+  imageUrls?: string[]
 ): Promise<{
   is_valid: boolean;
   shareholders: any[];
@@ -220,10 +221,17 @@ export async function runFastExtractor(
   // Ensure API Key is initialized
   ensureApiKey();
 
-  const imageContents = images.map(img => ({
+  const remoteImageContents = (imageUrls || []).map(url => ({
     type: 'input_image' as const,
-    imageUrl: `data:${img.mimeType};base64,${img.base64}`
+    imageUrl: url
   }));
+
+  const imageContents = (remoteImageContents.length > 0)
+    ? []
+    : images.map(img => ({
+      type: 'input_image' as const,
+      imageUrl: `data:${img.mimeType};base64,${img.base64}`
+    }));
 
   const userPrompt = feedback
     ? `이전 분석에서 다음 문제가 발견되었습니다: "${feedback}". \n문제를 수정하여 주주명부 데이터를 다시 정밀하게 추출해줘. 반드시 JSON 형식으로만 응답하세요.`
@@ -234,6 +242,7 @@ export async function runFastExtractor(
       role: 'user' as const,
       content: [
         ...imageContents,
+        ...remoteImageContents,
         { type: 'input_text' as const, text: userPrompt }
       ]
     }

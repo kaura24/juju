@@ -174,6 +174,8 @@ const EXTRACTOR_INSTRUCTIONS = `당신은 한국 주주명부 데이터 추출 �
   - 이 정보는 D단계에서 identifier_type 결정에 사용됨
 
 ## 추출 대상 - 문서 메타데이터 (HITL 컨텍스트용)
+**[중요] 추출 순서 원칙**: 반드시 **1. 회사명**을 먼저 찾고, 그 다음 주주 데이터를 파악한 뒤, **마지막으로 2. 발행일**을 확정하십시오. 발행일은 문서의 맥락(상단/하단/도장)을 모두 파악한 뒤 결정해야 정확합니다.
+
 - company_name: 회사명 (상단 타이틀, 하단 법인인감 등에서 추출). **경고: 주주 리스트 내의 법인 주주와 혼동 금지**
 - document_date: **발행일** (발행일, 기준일, 생성일, 작성일, 'ㅇㅇㅇ일 현재', 도장 근처 날짜 등을 찾아 YYYY-MM-DD 형식으로 정규화).
 - **⚠️ 날짜 구분 원칙 (CRITICAL)**: 문서 전체 일관성 데이터인 **'발행일(Issue Date)'**과 개별 주주 식별 데이터인 **'생년월일(Birth Date)'**은 엄연히 다릅니다. 발행일은 보통 제목 주변이나 하단 인감 근처에 위치합니다. 이를 구분하여 각각의 필드에 정확히 배정하십시오.
@@ -669,14 +671,22 @@ function parseJsonResponse<T>(output: string): T {
 }
 
 export async function runGatekeeperAgent(
-  images: { base64: string, mimeType: string }[]
+  images: { base64: string, mimeType: string }[],
+  imageUrls?: string[]
 ): Promise<DocumentAssessment> {
   console.log('[Agent] Running B_Gatekeeper with @openai/agents SDK...');
 
-  const imageContents = images.map(img => ({
+  const remoteImageContents = (imageUrls || []).map(url => ({
     type: 'input_image' as const,
-    imageUrl: `data:${img.mimeType};base64,${img.base64}`
+    imageUrl: url
   }));
+
+  const imageContents = (remoteImageContents.length > 0)
+    ? []
+    : images.map(img => ({
+      type: 'input_image' as const,
+      imageUrl: `data:${img.mimeType};base64,${img.base64}`
+    }));
 
   // 이미지를 포함한 입력 메시지 구성
   const input = [
@@ -684,6 +694,7 @@ export async function runGatekeeperAgent(
       role: 'user' as const,
       content: [
         ...imageContents,
+        ...remoteImageContents,
         {
           type: 'input_text' as const,
           text: '이 문서(모든 페이지)를 분석해주세요. JSON 형식으로만 응답하세요.',
@@ -727,7 +738,8 @@ export async function runGatekeeperAgent(
  */
 export async function runExtractorAgent(
   images: { base64: string, mimeType: string }[],
-  assessment: DocumentAssessment
+  assessment: DocumentAssessment,
+  imageUrls?: string[]
 ): Promise<ExtractorOutput> {
   console.log('[Agent] Running C_Extractor with @openai/agents SDK...');
 
@@ -742,16 +754,24 @@ export async function runExtractorAgent(
 JSON 형식으로만 응답하세요.
 `;
 
-  const imageContents = images.map(img => ({
+  const remoteImageContents = (imageUrls || []).map(url => ({
     type: 'input_image' as const,
-    imageUrl: `data:${img.mimeType};base64,${img.base64}`
+    imageUrl: url
   }));
+
+  const imageContents = (remoteImageContents.length > 0)
+    ? []
+    : images.map(img => ({
+      type: 'input_image' as const,
+      imageUrl: `data:${img.mimeType};base64,${img.base64}`
+    }));
 
   const input = [
     {
       role: 'user' as const,
       content: [
         ...imageContents,
+        ...remoteImageContents,
         {
           type: 'input_text' as const,
           text: contextPrompt,

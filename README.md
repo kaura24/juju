@@ -1,7 +1,24 @@
-<!-- File: README.md -->
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.4
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.5
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
+
+## 🚀 v2.5 Major Update: Supabase Storage Integration
+**Vercel Serverless 환경의 파일 시스템 제약을 영구적으로 해결하기 위해 Supabase Storage를 전면 도입했습니다.**
+
+### 💾 Supabase Storage Architecture
+기존 `/tmp` 디렉토리를 사용하는 임시 방편을 넘어, 엔터프라이즈급 안정을 위한 **클라우드 스토리지 파이프라인**을 구축했습니다.
+
+1.  **Direct Upload via Service Role**: 서버 사이드에서 `SERVICE_KEY`를 사용하여 RLS(Row Level Security) 제약 없이 안정적으로 파일을 업로드합니다.
+2.  **Public URL Generation**: 업로드된 이미지는 고유한 Public URL로 변환되어 GPT-4o Vision에게 전달됩니다. 이는 로컬 파일 경로를 사용할 때보다 훨씬 빠르고 안정적인 이미지 처리를 보장합니다.
+3.  **Automatic Lifecycle Management**: 분석이 완료된 파일이나 실패한 파일은 정책에 따라 효율적으로 관리됩니다 (추후 확장 예정).
+
+### 🛠️ Config Updates (.env)
+시스템 구동을 위해 다음 환경변수가 필수적으로 요구됩니다.
+```bash
+SUPABASE_URL="https://your-project.supabase.co"
+SUPABASE_SERVICE_KEY="your-service-role-key" # (Caution: Server-side only)
+SUPABASE_BUCKET_NAME="uploads"
+```
 
 ---
 
@@ -141,7 +158,7 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 ---
 
 **Last Updated**: 2026-01-27
-**System Version**: 2.4.0 (Commit: 9d13ecf) - Vercel Stability & Self-Healing
+**System Version**: 2.5.0 (Supabase Integrated) - Vercel & Supabase Hybrid Architecture
 **Maintainer**: JuJu Dev Team
 
 ---

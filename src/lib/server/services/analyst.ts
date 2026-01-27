@@ -25,7 +25,8 @@ export class AnalystService {
      */
     public async generateReport(
         doc: NormalizedDoc,
-        validationReport?: ValidationReport
+        validationReport?: ValidationReport,
+        imageUrls?: string[]
     ): Promise<InsightsAnswerSet> {
         console.log(`[AnalystService] === Starting generateReport ===`);
         console.log(`[AnalystService] doc exists: ${!!doc}`);
@@ -45,7 +46,7 @@ export class AnalystService {
             };
 
             console.log(`[AnalystService] Calling runAnalystAgent...`);
-            const synthesis = await runAnalystAgent(doc, vReport);
+            const synthesis = await runAnalystAgent(doc, vReport, imageUrls);
             console.log(`[AnalystService] runAnalystAgent completed. synthesis: ${JSON.stringify(synthesis).slice(0, 200)}`);
 
             const { shareholders, document_properties } = doc;

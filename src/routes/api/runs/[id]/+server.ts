@@ -28,7 +28,8 @@ export const GET: RequestHandler = async ({ params }) => {
         errorMessage: run.error_message,
         createdAt: run.created_at,
         updatedAt: run.updated_at,
-        model: MODEL
+        model: MODEL,
+        storageProvider: run.storage_provider
       },
       events,
       hitlPacket: hitlPacket || null

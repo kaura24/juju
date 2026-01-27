@@ -185,6 +185,20 @@ export async function updateRunStatus(
 }
 
 /**
+ * Run의 스토리지 제공자 업데이트
+ */
+export async function updateRunStorageProvider(
+  runId: string,
+  provider: 'SUPABASE' | 'LOCAL'
+): Promise<void> {
+  const run = await getRun(runId);
+  if (!run) throw new Error(`Run not found: ${runId}`);
+
+  run.storage_provider = provider;
+  await _save(DIRS.runs, runId, run);
+}
+
+/**
  * 모든 Run 목록 조회
  */
 export async function listRuns(): Promise<Run[]> {

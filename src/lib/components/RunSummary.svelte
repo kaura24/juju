@@ -5,6 +5,7 @@
         status: RunStatus | "loading";
         finalAnswer: InsightsAnswerSet | null;
         connectedModel: string | null;
+        storageProvider: "SUPABASE" | "LOCAL" | null;
         hitlId: string | undefined;
     }
 
@@ -12,6 +13,7 @@
         status,
         finalAnswer = null,
         connectedModel = null,
+        storageProvider = null,
         hitlId = undefined,
     }: Props = $props();
 
@@ -203,6 +205,17 @@
                         </div>
                     {/if}
                 {/if}
+
+                {#if storageProvider}
+                    <div class="storage-badge {storageProvider.toLowerCase()}">
+                        <span class="icon"
+                            >{storageProvider === "SUPABASE"
+                                ? "☁️"
+                                : "📁"}</span
+                        >
+                        <span class="label">{storageProvider}</span>
+                    </div>
+                {/if}
             </div>
 
             <!-- Removed Model Badge as per user request -->
@@ -213,7 +226,7 @@
             <div class="running-box">
                 <div class="spinner"></div>
                 <p>AI가 주주명부를 분석하고 있습니다...</p>
-                <button class="stop-btn" on:click={handleForceStop}>
+                <button class="stop-btn" onclick={handleForceStop}>
                     <span>⏹</span> 강제 중단
                 </button>
             </div>
@@ -567,6 +580,27 @@
     .result-badge.review {
         background-color: #f59e0b;
         color: white;
+    }
+
+    .storage-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+    }
+    .storage-badge.supabase {
+        background: rgba(16, 185, 129, 0.1);
+        color: #10b981;
+        border-color: rgba(16, 185, 129, 0.2);
+    }
+    .storage-badge.local {
+        background: rgba(160, 174, 192, 0.1);
+        color: #718096;
+        border-color: rgba(160, 174, 192, 0.2);
     }
 
     /* Reasoning Text */

@@ -30,6 +30,7 @@
     | "error"
     | "rejected" = $state("loading");
   let connectedModel: string | null = $state(null);
+  let storageProvider: "SUPABASE" | "LOCAL" | null = $state(null);
   let logs: any[] = $state([]); // Store log entries locally
 
   const runId = $page.params.id;
@@ -92,6 +93,7 @@
 
       status = data.run.status;
       if (data.run.model) connectedModel = data.run.model;
+      if (data.run.storageProvider) storageProvider = data.run.storageProvider;
 
       // Load existing logs to populate pipeline
       try {
@@ -289,6 +291,7 @@
         {status}
         {finalAnswer}
         {connectedModel}
+        {storageProvider}
         hitlId={hitlPacket?.id}
       />
     </section>
