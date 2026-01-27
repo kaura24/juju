@@ -44,3 +44,67 @@ export function getPublicUrl(path: string) {
 
     return data.publicUrl;
 }
+
+/**
+ * JSON 데이터를 Supabase Storage에 저장합니다.
+ * (Bucket: juju-data)
+ */
+export async function uploadJson(path: string, data: any) {
+    // path example: "runs/123.json"
+    const jsonString = JSON.stringify(data, null, 2);
+    const { error } = await supabase.storage
+        .from('juju-data')
+        .upload(path, jsonString, {
+            contentType: 'application/json',
+            upsert: true
+        });
+
+    if (error) {
+        console.error(`[SupabaseStorage] Failed to upload JSON to ${path}:`, error);
+        // Don't throw for minor errors, but here it's critical
+        throw error;
+    }
+}
+
+/**
+ * Supabase Storage에서 JSON 데이터를 로드합니다.
+ */
+export async function downloadJson<T>(path: string): Promise<T | null> {
+    const { data, error } = await supabase.storage
+        .from('juju-data')
+        .download(path);
+
+    if (error) {
+        // Console warn instead of error for missing files (common in first load)
+        // console.warn(`[SupabaseStorage] Failed to download JSON from ${path}:`, error.message);
+        return null;
+    }
+
+    const text = await data.text();
+    try {
+        return JSON.parse(text) as T;
+    } catch (e) {
+        console.error(`[SupabaseStorage] JSON Parse Error for ${path}:`, e);
+        return null;
+    }
+}
+
+/**
+ * Supabase Storage의 특정 폴더 내 파일 목록을 가져옵니다.
+ */
+export async function listJsonFiles(folder: string): Promise<string[]> {
+    const { data, error } = await supabase.storage
+        .from('juju-data')
+        .list(folder, {
+            limit: 100,
+            offset: 0,
+            sortBy: { column: 'created_at', order: 'desc' },
+        });
+
+    if (error) {
+        console.error(`[SupabaseStorage] List Error in ${folder}:`, error);
+        return [];
+    }
+
+    return data.map(file => file.name);
+}

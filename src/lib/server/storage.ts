@@ -64,30 +64,42 @@ async function ensureDirs() {
   isDirsInitialized = true;
 }
 
-// 헬퍼: 파일 기반 저장/로드 (Idempotency 강화: Atomic Write + Retry for Windows)
+// 헬퍼: 파일 기반 저장/로드 (Hybrid: Local FS or Supabase)
 async function _save<T>(dir: string, key: string, data: T): Promise<void> {
+  // Determine Folder Name from dir path
+  // dir is like ".../data/runs" or ".../data/events"
+  // We want "runs", "events", etc.
+  const folder = dir.split(/[\\/]/).pop() || 'misc';
+
+  if (IS_VERCEL) {
+    try {
+      const { uploadJson } = await import('./services/supabase_storage');
+      await uploadJson(`${folder}/${key}.json`, data);
+      return;
+    } catch (e) {
+      console.error(`[Storage] Supabase Save Failed (${folder}/${key}):`, e);
+      // Fallback to temp fs? No, Vercel tmp is unreliable.
+      throw e;
+    }
+  }
+
+  // Local FS Logic
   await ensureDirs();
   const filePath = join(dir, `${key}.json`);
   const tempPath = `${filePath}.${uuidv4()}.tmp`;
 
   try {
-    // 1. 임시 파일에 쓰기
     await writeFile(tempPath, JSON.stringify(data, null, 2));
-
-    // 2. 이름 변경 (Atomic Move + Windows Retry Logic)
-    // Windows에서는 다른 프로세스가 파일을 읽고 있을 때 EPERM 오류가 발생할 수 있음
     let retryCount = 0;
     const MAX_RETRIES = 5;
-
     while (retryCount < MAX_RETRIES) {
       try {
         await rename(tempPath, filePath);
-        return; // 성공 시 종료
+        return;
       } catch (err: any) {
         if (err.code === 'EPERM' || err.code === 'EBUSY') {
           retryCount++;
           if (retryCount >= MAX_RETRIES) throw err;
-          // 짧게 대기 후 재시도
           await new Promise(resolve => setTimeout(resolve, 100));
           continue;
         }
@@ -95,13 +107,25 @@ async function _save<T>(dir: string, key: string, data: T): Promise<void> {
       }
     }
   } catch (error) {
-    // 실패 시 임시 파일 삭제 시도
     try { await unlink(tempPath); } catch { }
     throw error;
   }
 }
 
 async function _load<T>(dir: string, key: string): Promise<T | null> {
+  const folder = dir.split(/[\\/]/).pop() || 'misc';
+
+  if (IS_VERCEL) {
+    try {
+      const { downloadJson } = await import('./services/supabase_storage');
+      return await downloadJson<T>(`${folder}/${key}.json`);
+    } catch (e) {
+      console.warn(`[Storage] Supabase Load Failed (${folder}/${key}):`, e);
+      return null;
+    }
+  }
+
+  // Local FS Logic
   await ensureDirs();
   const filePath = join(dir, `${key}.json`);
   try {
@@ -113,6 +137,25 @@ async function _load<T>(dir: string, key: string): Promise<T | null> {
 }
 
 async function _list<T>(dir: string): Promise<T[]> {
+  const folder = dir.split(/[\\/]/).pop() || 'misc';
+
+  if (IS_VERCEL) {
+    try {
+      const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
+      const files = await listJsonFiles(folder);
+      const results: T[] = [];
+      // Parallel fetch for list items might be heavy, but listRuns is usually small page size
+      // Optimizing: fetch all in parallel
+      const tasks = files.map(f => downloadJson<T>(`${folder}/${f}`));
+      const loaded = await Promise.all(tasks);
+      return loaded.filter((item) => item !== null) as T[];
+    } catch (e) {
+      console.error(`[Storage] Supabase List Failed (${folder}):`, e);
+      return [];
+    }
+  }
+
+  // Local FS Logic
   await ensureDirs();
   try {
     const files = await readdir(dir);
