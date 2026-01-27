@@ -37,7 +37,7 @@
   </div>
 
   <footer class="footer">
-    <p>주주명부 AI 분석 시스템 • GPT-4o 기반</p>
+    <p>주주명부 AI 분석 시스템 • GPT-4o 기반 (v2.4.0)</p>
   </footer>
 </div>
 
