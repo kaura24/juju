@@ -23,6 +23,7 @@
     <a href="/" class="brand">
       <span class="logo">📊</span>
       <span class="name">JuJu</span>
+      <span class="version">v 2.4</span>
     </a>
     <div class="nav-links">
       <a href="/" class:active={$page.url.pathname === "/"}>홈</a>
@@ -73,6 +74,15 @@
 
   .brand .logo {
     font-size: 1.5rem;
+  }
+
+  .version {
+    font-size: 0.75rem;
+    color: #a0aec0;
+    margin-left: 0.2rem;
+    font-weight: 400;
+    align-self: flex-end;
+    margin-bottom: 3px;
   }
 
   .nav-links {
