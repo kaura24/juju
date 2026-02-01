@@ -2,7 +2,7 @@
 	"//": "File: package.json",
 	"name": "juju-shareholder-analyzer-v2",
 	"private": true,
-	"version": "2.6.0",
+	"version": "3.0.0",
 	"type": "module",
 	"engines": {
 		"node": ">=20.0.0"

@@ -77,10 +77,9 @@ import { appendFile } from 'fs/promises';
 import { join } from 'path';
 
 import os from 'os';
-// detect if running on Vercel (read-only file system except for /tmp)
-// Check both '1' and 'true' for robustness
-const IS_VERCEL = process.env.VERCEL === '1' || process.env.VERCEL === 'true';
-const BASE_DIR = IS_VERCEL ? os.tmpdir() : process.cwd();
+// detect if running on Vercel or explicitly enabled via env
+const USE_SUPABASE = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.USE_SUPABASE === 'true';
+const BASE_DIR = USE_SUPABASE ? os.tmpdir() : process.cwd();
 const ERROR_LOG_PATH = join(BASE_DIR, 'logs', 'server_error.log');
 
 // In-Memory cache (still useful for speed, but synced to disk)
@@ -421,4 +420,18 @@ export function getAllRunLogIds(): string[] {
  */
 export function deleteRunLog(runId: string): boolean {
   return runLogs.delete(runId);
+}
+
+/**
+ * 디버깅용 실행 체크포인트 로그 (강제 출력)
+ * - 어디서 터지는지 추적하기 위함
+ */
+export function logExecutionCheckpoint(runId: string, location: string, message: string) {
+  const timestamp = new Date().toISOString();
+  console.log(`\n============== [EXEC-CHECK] ==============`);
+  console.log(`TIME: ${timestamp}`);
+  console.log(`RUN : ${runId}`);
+  console.log(`LOC : ${location}`);
+  console.log(`MSG : ${message}`);
+  console.log(`==========================================\n`);
 }

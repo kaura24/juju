@@ -9,9 +9,14 @@
 import { readFile } from 'fs/promises';
 import { createCanvas, Image, loadImage } from '@napi-rs/canvas';
 import * as UTIF from 'utif';
+<<<<<<< Updated upstream
 import { spawn } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+=======
+import { join } from 'path';
+import { createRequire } from 'module';
+>>>>>>> Stashed changes
 
 // Fix for pdfjs-dist in Node.js - set global Image
 if (typeof global !== 'undefined') {
@@ -55,12 +60,14 @@ async function resizeImageIfNeeded(base64: string, mimeType: string, maxDimensio
 }
 
 /**
- * PDF 파일을 이미지(Base64) 배열로 변환 - 프로세스 격리 모드 (Child Process)
- * - 멱등성 및 안정성 확보를 위해 독립 프로세스에서 실행
+ * PDF 파일을 이미지(Base64) 배열로 변환 - Inline Processing (No Temp Files)
+ * - Vercel 호환성을 위해 메모리 내에서 직접 처리
+ * - pdfjs-dist의 dynamic load 문제 해결을 위해 createRequire 사용
  */
 export async function convertPdfToImages(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
-    console.log(`[Converter] Converting PDF via Isolated Process: ${filePath}`);
+    console.log(`[Converter] Converting PDF Inline: ${filePath}`);
 
+<<<<<<< Updated upstream
     return new Promise((resolve, reject) => {
         // ESM 환경에서 __dirname 대체
         const __filename = fileURLToPath(import.meta.url);
@@ -75,42 +82,73 @@ export async function convertPdfToImages(filePath: string): Promise<{ base64: st
         // Spawn doesn't have maxBuffer, it's a stream.
         const child = spawn('node', [scriptPath, filePath], {
             env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' }
+=======
+    try {
+        const require = createRequire(import.meta.url);
+
+        // Dynamically load pdfjs-dist to avoid ESM/CJS conflicts at build time
+        // We use the specific 'legacy' build for better Node compatibility usually,
+        // or the standard build depending on the version. 
+        // Trying standard first, then fallback to legacy if needed. 
+        // Note: In Vercel, node_modules should be available.
+        const pdfjsLib = require('pdfjs-dist/legacy/build/pdf.js');
+
+        // Load data into a Uint8Array
+        const dataBuffer = await readFile(filePath);
+        const data = new Uint8Array(dataBuffer);
+
+        // Load PDF Document
+        const loadingTask = pdfjsLib.getDocument({
+            data,
+            cMapUrl: 'node_modules/pdfjs-dist/cmaps/',
+            cMapPacked: true,
+            standardFontDataUrl: 'node_modules/pdfjs-dist/standard_fonts/'
+>>>>>>> Stashed changes
         });
 
-        const stdoutChunks: Buffer[] = [];
-        const stderrChunks: Buffer[] = [];
+        const doc = await loadingTask.promise;
+        const totalPages = doc.numPages;
+        console.log(`[Converter] PDF loaded. Total pages: ${totalPages}`);
 
-        child.stdout.on('data', (chunk: Buffer) => {
-            stdoutChunks.push(chunk);
-        });
+        const images: { base64: string; mimeType: string }[] = [];
 
-        child.stderr.on('data', (chunk: Buffer) => {
-            stderrChunks.push(chunk);
-            console.error(`[Converter-Child-Stderr] ${chunk.toString()}`);
-        });
+        // Limit pages to avoid timeout on Vercel (e.g., max 5 pages)
+        // User can request more, but for safety in synchronous flow:
+        const MAX_PAGES = 5;
+        const pagesToProcess = Math.min(totalPages, MAX_PAGES);
 
-        child.on('close', (code: number) => {
-            const stdoutData = Buffer.concat(stdoutChunks).toString();
-            const stderrData = Buffer.concat(stderrChunks).toString();
+        if (totalPages > MAX_PAGES) {
+            console.warn(`[Converter] PDF has ${totalPages} pages. Only processing first ${MAX_PAGES} to prevent timeout.`);
+        }
 
-            if (code === 0) {
-                try {
-                    const images = JSON.parse(stdoutData.trim());
-                    console.log(`[Converter] Isolated Process Success. Retrieved ${images.length} pages.`);
-                    resolve(images);
-                } catch (e: any) {
-                    console.error('[Converter] JSON Parse Fail. Stdout length:', stdoutData.length);
-                    reject(new Error(`Failed to parse bridge output: ${e.message}`));
-                }
-            } else {
-                reject(new Error(`Isolated converter failed with code ${code}. Stderr: ${stderrData}`));
-            }
-        });
+        for (let i = 1; i <= pagesToProcess; i++) {
+            const page = await doc.getPage(i);
+            const viewport = page.getViewport({ scale: 2.0 }); // Higher scale for quality
 
-        child.on('error', (err: Error) => {
-            reject(new Error(`Failed to start isolated converter: ${err.message}`));
-        });
-    });
+            const canvas = createCanvas(viewport.width, viewport.height);
+            const context = canvas.getContext('2d');
+
+            await page.render({
+                canvasContext: context as any, // Type mismatch workaround
+                viewport: viewport
+            }).promise;
+
+            let base64 = canvas.toBuffer('image/jpeg', 85).toString('base64');
+            const mimeType = 'image/jpeg';
+
+            // Resize if needed (keep it consistent)
+            base64 = await resizeImageIfNeeded(base64, mimeType);
+
+            images.push({ base64, mimeType });
+            console.log(`[Converter] Page ${i} renered`);
+        }
+
+        return images;
+
+    } catch (error: any) {
+        console.error(`[Converter] Inline PDF conversion failed:`, error);
+        throw new Error(`PDF conversion error: ${error.message}`);
+    }
 }
 
 /**

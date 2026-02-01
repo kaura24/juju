@@ -10,6 +10,7 @@ import { Agent, run } from '@openai/agents';
 import { z } from 'zod';
 import { MODEL } from '../agents';
 import { ensureApiKey } from '../agents';
+import { logExecutionCheckpoint } from '../agentLogger';
 
 // ============================================
 // Helper: Debug Logger
@@ -201,6 +202,7 @@ AI는 종종 하단의 지분 리스트(테이블)에 압도되어 상단의 중
 `;
 
 export async function runFastExtractor(
+  runId: string,
   images: { base64: string, mimeType: string }[],
   feedback?: string,
   imageUrls?: string[]
@@ -218,6 +220,8 @@ export async function runFastExtractor(
     instructions: INSTRUCTIONS,
   });
 
+  logExecutionCheckpoint(runId, 'FastExtractor', 'Agent initialized. Building input...');
+
   // Ensure API Key is initialized
   ensureApiKey();
 
@@ -232,6 +236,12 @@ export async function runFastExtractor(
       type: 'input_image' as const,
       imageUrl: `data:${img.mimeType};base64,${img.base64}`
     }));
+
+  if (remoteImageContents.length > 0) {
+    logExecutionCheckpoint(runId, 'FastExtractor', `Using ${remoteImageContents.length} remote images (Supabase).`);
+  } else {
+    logExecutionCheckpoint(runId, 'FastExtractor', `Using ${images.length} base64 images (Local Fallback).`);
+  }
 
   const userPrompt = feedback
     ? `이전 분석에서 다음 문제가 발견되었습니다: "${feedback}". \n문제를 수정하여 주주명부 데이터를 다시 정밀하게 추출해줘. 반드시 JSON 형식으로만 응답하세요.`
@@ -251,11 +261,13 @@ export async function runFastExtractor(
   try {
     console.log(`[FastExtractor] Model: ${MODEL}`);
     console.log(`[FastExtractor] Sending request to AI model (Input Payload Size: ${JSON.stringify(input).length} chars)...`);
+    logExecutionCheckpoint(runId, 'FastExtractor', `Sending request to AI Model. Payload size: ${JSON.stringify(input).length}`);
 
     const startTime = Date.now();
     const result = await run(agent, input);
     const duration = Date.now() - startTime;
     console.log(`[FastExtractor] AI response received in ${duration}ms`);
+    logExecutionCheckpoint(runId, 'FastExtractor', `AI Response received in ${duration}ms`);
 
     let jsonStr = result.finalOutput || '';
     logDebug('[FastExtractor] Raw AI Output:', jsonStr);
@@ -278,6 +290,7 @@ export async function runFastExtractor(
     } catch (e) {
       console.error('[FastExtractor] JSON Parse Failed:', e);
       console.error('[FastExtractor] JSON String was:', jsonStr);
+      logExecutionCheckpoint(runId, 'FastExtractor', 'JSON Parse Failed');
       throw new Error('Failed to parse AI output as JSON');
     }
 
@@ -326,6 +339,8 @@ export async function runFastExtractor(
     };
 
   } catch (err) {
+    const errorMsg = err instanceof Error ? err.message : String(err);
+    logExecutionCheckpoint(runId, 'FastExtractor', `CRITICAL ERROR: ${errorMsg}`);
     console.error('[FastExtractor] CRITICAL ERROR:', err);
     if (err instanceof Error) {
       console.error('[FastExtractor] Stack Trace:', err.stack);

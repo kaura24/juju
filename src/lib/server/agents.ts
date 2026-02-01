@@ -8,6 +8,7 @@
 
 import { Agent, run, setDefaultOpenAIKey } from '@openai/agents';
 import { loadEnvConfig } from '$lib/util/env';
+import { logExecutionCheckpoint } from './agentLogger';
 import type {
   DocumentAssessment,
   ExtractorOutput,
@@ -21,8 +22,8 @@ import type {
 // ============================================
 
 const config = loadEnvConfig();
-export const MODEL = config.OPENAI_MODEL || 'gpt-4o';  // Centralized model selection
-export const FALLBACK_MODEL = 'gpt-4o';
+export const MODEL = config.OPENAI_MODEL || 'gpt-4o-mini';  // Switched to lightweight model for speed
+export const FALLBACK_MODEL = 'gpt-4o-mini';
 
 
 let apiKeyInitialized = false;
@@ -671,10 +672,12 @@ function parseJsonResponse<T>(output: string): T {
 }
 
 export async function runGatekeeperAgent(
+  runId: string,
   images: { base64: string, mimeType: string }[],
   imageUrls?: string[]
 ): Promise<DocumentAssessment> {
   console.log('[Agent] Running B_Gatekeeper with @openai/agents SDK...');
+  logExecutionCheckpoint(runId, 'B_Gatekeeper', 'Agent initialized. Preparing input...');
 
   const remoteImageContents = (imageUrls || []).map(url => ({
     type: 'input_image' as const,
@@ -706,9 +709,13 @@ export async function runGatekeeperAgent(
   // API Key 초기화
   ensureApiKey();
   console.log('[Agent-DEBUG] runGatekeeperAgent: key verified');
+  logExecutionCheckpoint(runId, 'B_Gatekeeper', `API Key verified. Sending request to AI (Payload size: ${JSON.stringify(input).length})...`);
 
   try {
+    const startTime = Date.now();
     const result = await run(gatekeeperAgent, input);
+    const duration = Date.now() - startTime;
+    logExecutionCheckpoint(runId, 'B_Gatekeeper', `AI Response received in ${duration}ms`);
 
     const output = result.finalOutput || '';
     const assessment = parseJsonResponse<DocumentAssessment>(output);
@@ -737,11 +744,13 @@ export async function runGatekeeperAgent(
  * C_Extractor Agent 실행
  */
 export async function runExtractorAgent(
+  runId: string,
   images: { base64: string, mimeType: string }[],
   assessment: DocumentAssessment,
   imageUrls?: string[]
 ): Promise<ExtractorOutput> {
   console.log('[Agent] Running C_Extractor with @openai/agents SDK...');
+  logExecutionCheckpoint(runId, 'C_Extractor', 'Agent initialized. Preparing input...');
 
   const contextPrompt = `
 문서 평가 결과:
@@ -783,9 +792,13 @@ JSON 형식으로만 응답하세요.
   // API Key 초기화
   ensureApiKey();
   console.log('[Agent-DEBUG] runExtractorAgent: key verified');
+  logExecutionCheckpoint(runId, 'C_Extractor', `API Key verified. Sending request to AI (Payload size: ${JSON.stringify(input).length})...`);
 
   try {
+    const startTime = Date.now();
     const result = await run(extractorAgent, input);
+    const duration = Date.now() - startTime;
+    logExecutionCheckpoint(runId, 'C_Extractor', `AI Response received in ${duration}ms`);
 
     const output = result.finalOutput || '';
     const extractorOutput = parseJsonResponse<ExtractorOutput>(output);
@@ -813,9 +826,11 @@ JSON 형식으로만 응답하세요.
  * D_Normalizer Agent 실행
  */
 export async function runNormalizerAgent(
+  runId: string,
   extractorOutput: ExtractorOutput
 ): Promise<NormalizedDoc> {
   console.log('[Agent] Running D_Normalizer with @openai/agents SDK...');
+  logExecutionCheckpoint(runId, 'D_Normalizer', 'Agent initialized. Preparing input...');
 
   // API Key 초기화
   ensureApiKey();
@@ -825,8 +840,13 @@ export async function runNormalizerAgent(
 
 ${JSON.stringify(extractorOutput, null, 2)}`;
 
+  logExecutionCheckpoint(runId, 'D_Normalizer', `Sending request to AI (Payload size: ${input.length})...`);
+
   try {
+    const startTime = Date.now();
     const result = await run(normalizerAgent, input);
+    const duration = Date.now() - startTime;
+    logExecutionCheckpoint(runId, 'D_Normalizer', `AI Response received in ${duration}ms`);
 
     const output = result.finalOutput || '';
     const normalizedDoc = parseJsonResponse<NormalizedDoc>(output);
@@ -834,6 +854,8 @@ ${JSON.stringify(extractorOutput, null, 2)}`;
     return normalizedDoc;
 
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    logExecutionCheckpoint(runId, 'D_Normalizer', `ERROR: ${errorMsg}`);
     console.error('[Agent] D_Normalizer error:', error);
 
     // Fallback

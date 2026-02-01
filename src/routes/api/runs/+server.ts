@@ -13,6 +13,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
   try {
     const contentType = request.headers.get('content-type') || '';
     let filePaths: string[] = [];
+    let fileMetadata: Record<string, { original_name: string }> = {};
     let mode: 'FAST' | 'MULTI_AGENT' | undefined;
 
     if (contentType.includes('multipart/form-data')) {
@@ -32,6 +33,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
         if (file.size === 0) continue;
         const path = await saveFile(file);
         filePaths.push(path);
+        fileMetadata[path] = { original_name: file.name };
       }
     } else if (contentType.includes('application/json')) {
       const body = await request.json();
@@ -43,6 +45,8 @@ export const POST: RequestHandler = async ({ request, platform }) => {
           if (img.base64 && img.mimeType) {
             const path = await saveBase64Image(img.base64, img.mimeType);
             filePaths.push(path);
+            // For base64, we don't have original name, so skip metadata or use synthetic name
+            fileMetadata[path] = { original_name: `image_${Date.now()}.${img.mimeType.split('/')[1]}` };
           }
         }
       }
@@ -53,13 +57,14 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     }
 
     // Run 생성
-    const run = await createRun(filePaths, mode);
+    const run = await createRun(filePaths, mode, fileMetadata);
 
     // [FIX] Trigger execution immediately on the same instance to avoid Vercel FS isolation issues
     // This allows the run to start even if the subsequent /execute request hits a different instance
     console.log(`[API] Triggering execution for run ${run.id} with mode: ${run.execution_mode || 'MULTI_AGENT (default)'}`);
 
     const executionPromise = executeRun(run.id, run.execution_mode).catch(err => {
+<<<<<<< Updated upstream
          console.error(`[API] Background execution error for run ${run.id}:`, err);
     });
 
@@ -69,6 +74,13 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     } else {
         console.warn(`[API] platform.waitUntil not available, execution may be terminated early for run ${run.id}`);
         // Fire and forget - execution will be resumed by detail page if needed
+=======
+      console.error(`[API] Background execution error:`, err);
+    });
+
+    if ((platform as any)?.waitUntil) {
+      (platform as any).waitUntil(executionPromise);
+>>>>>>> Stashed changes
     }
 
     return json({

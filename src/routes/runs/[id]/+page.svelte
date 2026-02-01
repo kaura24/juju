@@ -47,6 +47,12 @@
         if (match) connectedModel = match[1];
         return;
       }
+
+      // If run completed message
+      if (status !== "error") status = "completed";
+      if (eventSource) eventSource.close();
+      if (pollInterval) clearInterval(pollInterval);
+      return;
     }
 
     switch (data.type) {
@@ -75,10 +81,6 @@
       case "error":
         status = "error";
         break;
-
-      case "completed":
-        if (status !== "error") status = "completed";
-        break;
     }
   }
 
@@ -91,50 +93,54 @@
       const data = await response.json();
       dlog("api", `Current run status: ${data.run.status}`, data.run);
 
-      status = data.run.status;
+      // Update status ONLY if not already in terminal state
+      if (
+        status !== "completed" &&
+        status !== "error" &&
+        status !== "rejected" &&
+        status !== "hitl"
+      ) {
+        if (data.run.status) status = data.run.status;
+      }
       if (data.run.model) connectedModel = data.run.model;
       if (data.run.storageProvider) storageProvider = data.run.storageProvider;
 
-      // Load existing logs to populate pipeline
-      try {
-        dlog("api", `Fetching logs: /api/runs/${runId}/logs`);
-        const logRes = await fetch(`/api/runs/${runId}/logs`);
-        if (logRes.ok) {
-          const logData = await logRes.json();
-          dlog(
-            "api",
-            `Loaded ${logData.data?.agents?.length || 0} agents' logs`,
-          );
-          // Flatten AgentLogCollection[] to LogEntry[]
-          if (logData.data && logData.data.agents) {
-            const flatLogs: any[] = [];
-            logData.data.agents.forEach((agentCol: any) => {
-              if (agentCol.logs) {
-                flatLogs.push(...agentCol.logs);
-              }
-            });
-            // Sort by timestamp if needed, though they might be ordered.
-            // Agent logs might be interleaved in time but grouped by agent in the response?
-            // Actually RunLogReport groups by agent. If we flatten, we might lose time order if we just concat.
-            // But RunLogStream groups by agent anyway!
-            // So order of *blocks* matters.
-            // If the report is ordered by agent execution, we are good.
-            // Let's trust the report order or sort by timestamp.
-            // Sort safe:
-            flatLogs.sort(
-              (a, b) =>
-                new Date(a.timestamp).getTime() -
-                new Date(b.timestamp).getTime(),
+      // Load existing logs to populate pipeline (Only if logs are empty to prevent re-render flicker)
+      if (logs.length === 0) {
+        try {
+          dlog("api", `Fetching logs: /api/runs/${runId}/logs`);
+          const logRes = await fetch(`/api/runs/${runId}/logs`);
+          if (logRes.ok) {
+            const logData = await logRes.json();
+            dlog(
+              "api",
+              `Loaded ${logData.data?.agents?.length || 0} agents' logs`,
             );
+            // Flatten AgentLogCollection[] to LogEntry[]
+            if (logData.data && logData.data.agents) {
+              const flatLogs: any[] = [];
+              logData.data.agents.forEach((agentCol: any) => {
+                if (agentCol.logs) {
+                  flatLogs.push(...agentCol.logs);
+                }
+              });
 
-            logs = flatLogs;
+              // Sort safe:
+              flatLogs.sort(
+                (a, b) =>
+                  new Date(a.timestamp).getTime() -
+                  new Date(b.timestamp).getTime(),
+              );
+
+              logs = flatLogs;
+            }
           }
+        } catch (err) {
+          console.warn("Failed to fetch existing logs:", err);
         }
-      } catch (err) {
-        console.warn("Failed to fetch existing logs:", err);
       }
 
-      if (data.run.status === "completed") {
+      if (data.run.status === "completed" && !finalAnswer) {
         const res = await fetch(`/api/runs/${runId}/result`);
         if (res.ok) {
           const r = await res.json();
@@ -186,12 +192,24 @@
         status === "error" ||
         status === "rejected"
       ) {
-        clearInterval(pollInterval);
+        if (pollInterval) clearInterval(pollInterval);
+        if (eventSource) eventSource.close();
         return;
       }
       dlog("poll", "Polling triggered");
-      console.log("[Polling] Fetching updates...");
+      // console.log("[Polling] Fetching updates..."); // Reduce noise
       await loadInitialData();
+
+      // Check again after load to stop immediately if changed
+      const currentStatus = status as string;
+      if (
+        currentStatus === "completed" ||
+        currentStatus === "error" ||
+        currentStatus === "rejected"
+      ) {
+        if (pollInterval) clearInterval(pollInterval);
+        if (eventSource) eventSource.close();
+      }
     }, 5000); // Poll every 5 seconds
   }
 
@@ -205,6 +223,8 @@
       ) {
         connectSSE();
         startPolling();
+      } else {
+        console.log("Run already finished, skipping SSE/Polling");
       }
     };
 

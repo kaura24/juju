@@ -11,6 +11,7 @@ import type {
     RuleTrigger
 } from '$lib/types';
 import { calculateEffectiveRatios } from '../logic/ownership';
+import { logExecutionCheckpoint } from '../agentLogger';
 
 /**
  * AnalystService
@@ -24,10 +25,12 @@ export class AnalystService {
      * Generate the final insights report from the extracted data.
      */
     public async generateReport(
+        runId: string,
         doc: NormalizedDoc,
         validationReport?: ValidationReport,
         imageUrls?: string[]
     ): Promise<InsightsAnswerSet> {
+        logExecutionCheckpoint(runId, 'AnalystService', 'Starting generateReport');
         console.log(`[AnalystService] === Starting generateReport ===`);
         console.log(`[AnalystService] doc exists: ${!!doc}`);
         console.log(`[AnalystService] doc.shareholders: ${doc?.shareholders?.length ?? 'undefined'}`);
@@ -46,7 +49,9 @@ export class AnalystService {
             };
 
             console.log(`[AnalystService] Calling runAnalystAgent...`);
-            const synthesis = await runAnalystAgent(doc, vReport, imageUrls);
+            logExecutionCheckpoint(runId, 'AnalystService', 'Calling runAnalystAgent');
+            const synthesis = await runAnalystAgent(runId, doc, vReport, imageUrls);
+            logExecutionCheckpoint(runId, 'AnalystService', 'runAnalystAgent returned');
             console.log(`[AnalystService] runAnalystAgent completed. synthesis: ${JSON.stringify(synthesis).slice(0, 200)}`);
 
             const { shareholders, document_properties } = doc;
@@ -153,6 +158,7 @@ export class AnalystService {
         } catch (err: any) {
             console.error(`[AnalystService] ERROR in generateReport:`, err);
             console.error(`[AnalystService] Error stack:`, err?.stack);
+            logExecutionCheckpoint(runId, 'AnalystService', `ERROR: ${err.message}`);
             throw err;
         }
     }

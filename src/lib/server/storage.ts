@@ -35,9 +35,9 @@ import { writeFile, mkdir, readFile, readdir, unlink, rename } from 'fs/promises
 import { join, dirname } from 'path';
 import os from 'os';
 
-// detect if running on Vercel (read-only file system except for /tmp)
-const IS_VERCEL = process.env.VERCEL === '1';
-const BASE_DIR = IS_VERCEL ? os.tmpdir() : process.cwd();
+// detect if running on Vercel or explicitly enabled via env
+const USE_SUPABASE = process.env.VERCEL === '1' || process.env.USE_SUPABASE === 'true';
+const BASE_DIR = USE_SUPABASE ? os.tmpdir() : process.cwd();
 
 const DATA_DIR = join(BASE_DIR, 'data');
 const UPLOAD_DIR = join(BASE_DIR, 'uploads');
@@ -71,7 +71,7 @@ async function _save<T>(dir: string, key: string, data: T): Promise<void> {
   // We want "runs", "events", etc.
   const folder = dir.split(/[\\/]/).pop() || 'misc';
 
-  if (IS_VERCEL) {
+  if (USE_SUPABASE) {
     try {
       const { uploadJson } = await import('./services/supabase_storage');
       await uploadJson(`${folder}/${key}.json`, data);
@@ -115,7 +115,7 @@ async function _save<T>(dir: string, key: string, data: T): Promise<void> {
 async function _load<T>(dir: string, key: string): Promise<T | null> {
   const folder = dir.split(/[\\/]/).pop() || 'misc';
 
-  if (IS_VERCEL) {
+  if (USE_SUPABASE) {
     try {
       const { downloadJson } = await import('./services/supabase_storage');
       return await downloadJson<T>(`${folder}/${key}.json`);
@@ -139,7 +139,7 @@ async function _load<T>(dir: string, key: string): Promise<T | null> {
 async function _list<T>(dir: string): Promise<T[]> {
   const folder = dir.split(/[\\/]/).pop() || 'misc';
 
-  if (IS_VERCEL) {
+  if (USE_SUPABASE) {
     try {
       const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
       const files = await listJsonFiles(folder);
@@ -176,15 +176,24 @@ async function _list<T>(dir: string): Promise<T[]> {
 // Run 관리
 // ============================================
 
+// ============================================
+// Run 관리
+// ============================================
+
 /**
  * 새 Run 생성
  */
-export async function createRun(filePaths: string[], executionMode?: 'FAST' | 'MULTI_AGENT'): Promise<Run> {
+export async function createRun(
+  filePaths: string[],
+  executionMode?: 'FAST' | 'MULTI_AGENT',
+  fileMetadata?: Record<string, { original_name: string }>
+): Promise<Run> {
   const run: Run = {
     id: uuidv4(),
     status: 'pending',
     files: filePaths,
     execution_mode: executionMode,
+    file_metadata: fileMetadata,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
@@ -199,254 +208,20 @@ export async function createRun(filePaths: string[], executionMode?: 'FAST' | 'M
 export async function getRun(runId: string): Promise<Run | null> {
   return await _load<Run>(DIRS.runs, runId);
 }
-
-/**
- * Run 상태 업데이트
- */
-export async function updateRunStatus(
-  runId: string,
-  status: RunStatus,
-  currentStage?: StageName,
-  errorMessage?: string
-): Promise<void> {
-  const run = await getRun(runId);
-  if (!run) {
-    throw new Error(`Run not found: ${runId}`);
-  }
-
-  run.status = status;
-  run.updated_at = new Date().toISOString();
-
-  if (currentStage !== undefined) {
-    run.current_stage = currentStage;
-  }
-  if (errorMessage !== undefined) {
-    run.error_message = errorMessage;
-  }
-
-  await _save(DIRS.runs, runId, run);
-}
-
-/**
- * Run의 스토리지 제공자 업데이트
- */
-export async function updateRunStorageProvider(
-  runId: string,
-  provider: 'SUPABASE' | 'LOCAL'
-): Promise<void> {
-  const run = await getRun(runId);
-  if (!run) throw new Error(`Run not found: ${runId}`);
-
-  run.storage_provider = provider;
-  await _save(DIRS.runs, runId, run);
-}
-
-/**
- * 모든 Run 목록 조회
- */
-export async function listRuns(): Promise<Run[]> {
-  const runs = await _list<Run>(DIRS.runs);
-  return runs.sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  );
-}
-
-/**
- * 서버 재시작 시 실행 중인 모든 세션 정리
- */
-export async function cleanupRunningSessions(): Promise<number> {
-  let cleanedCount = 0;
-  const runs = await _list<Run>(DIRS.runs);
-
-  for (const run of runs) {
-    if (run.status === 'running') {
-      run.status = 'error';
-      run.error_message = 'Server restarted or timeout';
-      run.updated_at = new Date().toISOString();
-      await _save(DIRS.runs, run.id, run);
-      cleanedCount++;
-      console.log(`[Storage] Cleaned up running session: ${run.id}`);
-    }
-  }
-
-  return cleanedCount;
-}
-
-// ============================================
-// StageEvent 관리
-// ============================================
-
-/**
- * StageEvent 저장
- */
-export async function saveStageEvent(runId: string, event: StageEvent): Promise<void> {
-  const events = (await _load<StageEvent[]>(DIRS.events, runId)) || [];
-  events.push(event);
-  await _save(DIRS.events, runId, events);
-}
-
-/**
- * Run의 모든 StageEvent 조회
- */
-export async function getStageEvents(runId: string): Promise<StageEvent[]> {
-  return (await _load<StageEvent[]>(DIRS.events, runId)) || [];
-}
-
-// ============================================
-// Artifact 관리
-// ============================================
-
-type ArtifactType = 'assessment' | 'extractor_output' | 'normalized_doc' | 'validation_report' | 'answer_set';
-
-/**
- * Artifact 저장
- */
-export async function saveArtifact(
-  runId: string,
-  stage: string,
-  type: ArtifactType,
-  data: DocumentAssessment | ExtractorOutput | NormalizedDoc | ValidationReport | InsightsAnswerSet
-): Promise<void> {
-  const runArtifacts = (await _load<Record<string, unknown>>(DIRS.artifacts, runId)) || {};
-  const key = `${stage}:${type}`;
-  runArtifacts[key] = data;
-  await _save(DIRS.artifacts, runId, runArtifacts);
-}
-
-/**
- * Artifact 조회
- */
-export async function getArtifact<T>(
-  runId: string,
-  stage: string,
-  type: ArtifactType
-): Promise<T | null> {
-  const runArtifacts = await _load<Record<string, unknown>>(DIRS.artifacts, runId);
-  if (!runArtifacts) return null;
-  const key = `${stage}:${type}`;
-  return (runArtifacts[key] as T) || null;
-}
-
-// ============================================
-// HITL Packet 관리
-// ============================================
-
-/**
- * HITL 패킷 생성
- */
-export async function createHITLPacket(
-  runId: string,
-  stage: StageName,
-  payload: {
-    normalized?: NormalizedDoc;
-    extractor_output?: ExtractorOutput;
-    assessment?: DocumentAssessment;
-    triggers?: RuleTrigger[];
-  },
-  contextInfo?: {
-    company_name: string | null;
-    document_date: string | null;
-    shareholder_names: string[];
-  }
-): Promise<HITLPacket> {
-  const triggers = payload.triggers || [];
-  const reasonCodes = extractHITLReasonCodes(triggers) as ReasonCode[];
-  const requiredAction = determineRequiredAction(triggers) as RequiredAction;
-
-  const packet: HITLPacket = {
-    id: uuidv4(),
-    doc_id: `doc_${runId}`,
-    run_id: runId,
-    stage,
-    reason_codes: reasonCodes.length > 0 ? reasonCodes : ['MISSING_REQUIRED_FIELD_OR_PARSE_FAILURE'],
-    required_action: requiredAction,
-    triggers,
-    operator_notes: triggers
-      .filter(t => t.severity === 'BLOCKER')
-      .map(t => t.message),
-    payload: {
-      normalized: payload.normalized,
-      extractor_output: payload.extractor_output,
-      assessment: payload.assessment
-    },
-    context_info: contextInfo || {
-      company_name: payload.normalized?.document_properties.company_name
-        || payload.extractor_output?.document_info.company_name
-        || null,
-      document_date: payload.normalized?.document_properties.document_date
-        || payload.extractor_output?.document_info.document_date
-        || null,
-      shareholder_names: payload.normalized?.shareholders.map(s => s.name || 'Unknown')
-        || payload.extractor_output?.records.map(r => r.raw_name || 'Unknown')
-        || []
-    },
-    created_at: new Date().toISOString()
-  };
-
-  await _save(DIRS.hitl, packet.id, packet);
-  return packet;
-}
-
-/**
- * HITL 패킷 조회
- */
-export async function getHITLPacket(packetId: string): Promise<HITLPacket | null> {
-  return await _load<HITLPacket>(DIRS.hitl, packetId);
-}
-
-/**
- * Run에 연결된 HITL 패킷 조회
- */
-export async function getHITLPacketByRunId(runId: string): Promise<HITLPacket | null> {
-  const packets = await _list<HITLPacket>(DIRS.hitl);
-  for (const packet of packets) {
-    if (packet.run_id === runId && !packet.resolved_at) {
-      return packet;
-    }
-  }
-  return null;
-}
-
-/**
- * HITL 패킷 해결
- */
-export async function resolveHITLPacket(
-  packetId: string,
-  resolution: {
-    action_taken: string;
-    resolved_by: string;
-    corrections?: Record<string, unknown>;
-  }
-): Promise<void> {
-  const packet = await getHITLPacket(packetId);
-  if (!packet) {
-    throw new Error(`HITL packet not found: ${packetId}`);
-  }
-
-  packet.resolved_at = new Date().toISOString();
-  packet.resolution = resolution;
-  await _save(DIRS.hitl, packetId, packet);
-}
-
-/**
- * 대기 중인 HITL 패킷 목록 조회
- */
-export async function listPendingHITLPackets(): Promise<HITLPacket[]> {
-  const packets = await _list<HITLPacket>(DIRS.hitl);
-  return packets
-    .filter(p => !p.resolved_at)
-    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-}
+// ... existing code ...
 
 // ============================================
 // 파일 저장 (기능 유지)
 // ============================================
 
 /**
- * 업로드된 파일 저장
+ * 업로드된 파일 저장 (Safe Filename Strategy)
+ * - 원본 파일명은 URL 인코딩 이슈 등으로 문제를 일으킬 수 있음
+ * - 무조건 UUID + 확장자로 저장하고, 원본 이름은 메타데이터로 관리 권장
  */
 export async function saveFile(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
+<<<<<<< Updated upstream
 
   // 파일명을 URL-safe하게 정규화 (한글, 특수문자 제거)
   const sanitizedName = file.name
@@ -455,11 +230,15 @@ export async function saveFile(file: File): Promise<string> {
     .replace(/:/g, '-');        // 콜론을 대시로 변경
 
   const filename = `${uuidv4()}_${sanitizedName}`;
+=======
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+  const safeFilename = `${uuidv4()}.${ext}`;
+>>>>>>> Stashed changes
 
-  if (IS_VERCEL) {
+  if (USE_SUPABASE) {
     try {
       const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
-      const uploadPath = `uploads/${filename}`;
+      const uploadPath = `uploads/${safeFilename}`;
       await uploadRawFile(buffer, uploadPath, file.type || 'application/octet-stream');
       return getRawFileUrl(uploadPath);
     } catch (e) {
@@ -471,7 +250,7 @@ export async function saveFile(file: File): Promise<string> {
   }
 
   await ensureDirs();
-  const filepath = join(UPLOAD_DIR, filename);
+  const filepath = join(UPLOAD_DIR, safeFilename);
   await writeFile(filepath, buffer);
   return filepath;
 }
@@ -488,7 +267,7 @@ export async function saveBase64Image(base64Data: string, mimeType: string): Pro
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
 
-  if (IS_VERCEL) {
+  if (USE_SUPABASE) {
     try {
       const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
       const uploadPath = `uploads/${filename}`;
@@ -524,4 +303,187 @@ export async function saveRunLog(log: RunLogReport): Promise<void> {
  */
 export async function loadRunLog(runId: string): Promise<RunLogReport | null> {
   return await _load<RunLogReport>(LOG_DIR, runId);
+}
+
+// ============================================
+// 추가 Export 함수들 (Missing Exports 해결)
+// ============================================
+
+/**
+ * 실행 상태 업데이트
+ */
+export async function updateRunStatus(
+  runId: string,
+  status: RunStatus,
+  stage?: StageName,
+  error?: string
+): Promise<void> {
+  const run = await getRun(runId);
+  if (!run) return;
+
+  run.status = status;
+  if (stage) run.current_stage = stage;
+  if (error) run.error = error;
+  run.updated_at = new Date().toISOString();
+
+  await _save(DIRS.runs, runId, run);
+}
+
+/**
+ * StageEvent 저장
+ */
+export async function saveStageEvent(runId: string, event: StageEvent): Promise<void> {
+  await _save(DIRS.events, `${runId}_${Date.now()}_${event.stage_name}`, event);
+}
+
+/**
+ * 아티팩트 저장
+ */
+export async function saveArtifact(
+  runId: string,
+  stage: StageName,
+  name: string,
+  data: any
+): Promise<void> {
+  const key = `${runId}_${stage}_${name}`;
+  await _save(DIRS.artifacts, key, data);
+}
+
+/**
+ * 아티팩트 조회
+ */
+export async function getArtifact<T>(
+  runId: string,
+  stage: StageName,
+  name: string
+): Promise<T | null> {
+  const key = `${runId}_${stage}_${name}`;
+  return await _load<T>(DIRS.artifacts, key);
+}
+
+/**
+ * HITL 패킷 생성 및 저장
+ */
+export async function createHITLPacket(
+  runId: string,
+  stage: StageName,
+  context: any,
+  documentInfo: { company_name?: string | null, document_date?: string | null, shareholder_names?: string[] }
+): Promise<HITLPacket> {
+  // context 내에서 triggers 추출 (없으면 빈 배열)
+  let triggers: RuleTrigger[] = [];
+  if (context.triggers) {
+    triggers = context.triggers;
+  } else if (context.validationReport && context.validationReport.triggers) {
+    triggers = context.validationReport.triggers;
+  } else if (context.normalized && context.normalized.normalization_notes) {
+    // triggers가 명시적으로 없지만 normalized doc이 있는 경우 (예: B단계)는 빈 배열
+  }
+
+  // Determine required action
+  const requiredAction = determineRequiredAction(triggers);
+
+  const packet: HITLPacket = {
+    packet_id: uuidv4(),
+    id: uuidv4(), // Legacy id
+    doc_id: runId, // Using runId as doc_id for now
+    run_id: runId,
+    stage,
+    created_at: new Date().toISOString(),
+    status: 'PENDING',
+    reason_codes: extractHITLReasonCodes(triggers),
+    required_action: requiredAction,
+    triggers: triggers, // Added missing triggers
+    operator_notes: [], // Added empty notes
+    payload: {}, // Empty payload map, context is in context_data
+    context_data: context,
+    document_snapshot: {
+      company_name: documentInfo.company_name || '불명',
+      document_date: documentInfo.document_date || '불명',
+      shareholder_count: documentInfo.shareholder_names?.length || 0,
+      preview_names: documentInfo.shareholder_names?.slice(0, 5) || []
+    }
+  };
+
+  await _save(DIRS.hitl, packet.packet_id, packet);
+  return packet;
+}
+
+/**
+ * 실행 중인 세션 정리 (Startup 시 호출)
+ */
+export async function cleanupRunningSessions(): Promise<number> {
+  const runs = await _list<Run>(DIRS.runs);
+  let cleaned = 0;
+  for (const run of runs) {
+    if (run.status === 'running') {
+      run.status = 'error';
+      run.error = 'Server restarted';
+      await _save(DIRS.runs, run.id, run);
+      cleaned++;
+    }
+  }
+  return cleaned;
+}
+
+/**
+ * 스토리지 제공자 업데이트 (Run 메타데이터)
+ */
+export async function updateRunStorageProvider(runId: string, provider: 'LOCAL' | 'SUPABASE'): Promise<void> {
+  const run = await getRun(runId);
+  if (!run) return;
+  (run as any).storage_provider = provider;
+  await _save(DIRS.runs, runId, run);
+}
+
+/**
+ * Run에 대한 Stage Events 조회
+ */
+export async function getStageEvents(runId: string): Promise<StageEvent[]> {
+  const events: StageEvent[] = [];
+
+  if (USE_SUPABASE) {
+    // Supabase: List files and filter by name before downloading
+    try {
+      const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
+      const files = await listJsonFiles('events');
+
+      const targetFiles = files.filter(f => f.startsWith(runId) && f.endsWith('.json'));
+      const tasks = targetFiles.map(f => downloadJson<StageEvent>(`events/${f}`));
+      const loaded = await Promise.all(tasks);
+
+      loaded.forEach(item => {
+        if (item) events.push(item);
+      });
+    } catch (e) {
+      console.error('[Storage] Failed to load stage events from Supabase:', e);
+    }
+  } else {
+    // Local: Filter by filename
+    try {
+      await ensureDirs();
+      const files = await readdir(DIRS.events);
+      for (const file of files) {
+        if (file.startsWith(runId) && file.endsWith('.json')) {
+          const data = await _load<StageEvent>(DIRS.events, file.replace('.json', ''));
+          if (data) events.push(data);
+        }
+      }
+    } catch {
+      // Ignore errors (e.g. dir not found)
+    }
+  }
+
+  return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+}
+
+/**
+ * Run에 대한 HITL Packet 조회
+ */
+export async function getHITLPacketByRunId(runId: string): Promise<HITLPacket | null> {
+  const allPackets = await _list<HITLPacket>(DIRS.hitl);
+  const packets = allPackets.filter(p => p.run_id === runId);
+  if (packets.length === 0) return null;
+  // Return latest
+  return packets.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
 }

@@ -6,23 +6,101 @@
     uploaded: { runId: string; mode: "FAST" | "MULTI_AGENT" };
   }>();
 
+  // State Management
   let files: FileList | null = $state(null);
-  let uploading = $state(false);
+  let uploadStatus: "idle" | "uploading" | "navigating" = $state("idle");
   let busyMode: "FAST" | "MULTI_AGENT" | null = $state(null);
   let error: string | null = $state(null);
   let dragOver = $state(false);
-  let agentsReady = $state(false); // Track if images are processed and ready
-  let loadingPreviews = $state(false);
+  let isProcessingPdf = $state(false);
 
-  // 파일 미리보기
+  // Logic
+  let agentsReady = $state(false);
+  let loadingPreviews = $state(false);
   let previews: string[] = $state([]);
 
-  // 파일 입력 ref
+  // Refs
   let cameraInput: HTMLInputElement;
   let fileInput: HTMLInputElement;
-
-  // Mode Selection Node
   let modeSelectionNode: HTMLDivElement;
+
+  /**
+   * PDF to Image conversion using pdfjs-dist
+   */
+  async function convertPdfToImages(file: File): Promise<File[]> {
+    const pdfjs = await import("pdfjs-dist");
+    // @ts-ignore
+    pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+
+    const arrayBuffer = await file.arrayBuffer();
+    const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
+    const resultFiles: File[] = [];
+
+    const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages for safety
+
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await pdf.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      if (context) {
+        await page.render({
+          canvasContext: context,
+          viewport: viewport,
+        }).promise;
+
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, "image/jpeg", 0.9),
+        );
+
+        if (blob) {
+          resultFiles.push(
+            new File([blob], `${file.name.replace(".pdf", "")}_p${i}.jpg`, {
+              type: "image/jpeg",
+            }),
+          );
+        }
+      }
+    }
+    return resultFiles;
+  }
+
+  /**
+   * Normalize input files: convert PDFs to images, pass through others
+   */
+  async function processAndSetFiles(rawFiles: FileList | File[]) {
+    isProcessingPdf = true;
+    error = null;
+    const processed: File[] = [];
+
+    try {
+      for (const file of Array.from(rawFiles)) {
+        if (
+          file.type === "application/pdf" ||
+          file.name.toLowerCase().endsWith(".pdf")
+        ) {
+          const images = await convertPdfToImages(file);
+          processed.push(...images);
+        } else {
+          processed.push(file);
+        }
+      }
+
+      const dt = new DataTransfer();
+      processed.forEach((f) => dt.items.add(f));
+      files = dt.files;
+    } catch (e: any) {
+      console.error("[PDF Conversion Error]", e);
+      error = "PDF 변환 중 오류가 발생했습니다.";
+    } finally {
+      isProcessingPdf = false;
+    }
+  }
 
   $effect(() => {
     if (files && files.length > 0) {
@@ -36,40 +114,17 @@
           const url = URL.createObjectURL(file);
           newPreviews.push(url);
 
-          // Verify image is actually loadable
           const img = new Image();
-          img.onload = () => {
-            loadedCount++;
-            if (loadedCount === files!.length) {
-              agentsReady = true;
-              loadingPreviews = false;
-              // Auto-scroll to buttons when ready
-              setTimeout(() => {
-                modeSelectionNode?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                });
-              }, 300); // Increased delay slightly to ensure DOM render
-            }
-          };
-          img.onerror = () => {
-            loadedCount++;
-            if (loadedCount === files!.length) {
-              agentsReady = true;
-              loadingPreviews = false;
-              setTimeout(() => {
-                modeSelectionNode?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                });
-              }, 300);
-            }
-          };
+          img.onload = () => checkReady();
+          img.onerror = () => checkReady();
           img.src = url;
         } else {
           newPreviews.push("/file-icon.png");
+          checkReady();
+        }
+
+        function checkReady() {
           loadedCount++;
-          // Non-image files also trigger ready check immediately
           if (loadedCount === files!.length) {
             agentsReady = true;
             loadingPreviews = false;
@@ -82,18 +137,9 @@
           }
         }
       }
-
-      // Handle case where loop finishes (synchronous parts) but images might be async
-      // For non-images mixed or purely non-images, handled above.
-      // If loop is empty (shouldn't happen due to if check), do nothing.
-
       previews = newPreviews;
-
-      // Cleanup
       return () => {
-        for (const url of newPreviews) {
-          URL.revokeObjectURL(url);
-        }
+        newPreviews.forEach(URL.revokeObjectURL);
       };
     } else {
       previews = [];
@@ -105,30 +151,25 @@
   function handleCameraClick() {
     cameraInput?.click();
   }
-
   function handleFileClick() {
     fileInput?.click();
   }
 
-  function handleFileChange(e: Event) {
+  async function handleFileChange(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      // 기존 파일에 추가
-      if (files) {
-        const dt = new DataTransfer();
-        for (const f of files) dt.items.add(f);
-        for (const f of input.files) dt.items.add(f);
-        files = dt.files;
-      } else {
-        files = input.files;
-      }
+      const combined = files
+        ? [...Array.from(files), ...Array.from(input.files)]
+        : Array.from(input.files);
+      await processAndSetFiles(combined);
+      input.value = ""; // Clear for next selection
     }
   }
 
   async function handleUpload(mode: "FAST" | "MULTI_AGENT" = "MULTI_AGENT") {
     if (!files || files.length === 0) return;
 
-    uploading = true;
+    uploadStatus = "uploading";
     busyMode = mode;
     error = null;
 
@@ -150,28 +191,26 @@
       }
 
       const { runId } = await response.json();
-      dispatch("uploaded", { runId, mode });
+
+      // Stage 2: Navigating
+      uploadStatus = "navigating";
+
+      // Artificial delay for UX (to show the "success/navigating" state)
+      setTimeout(() => {
+        dispatch("uploaded", { runId, mode });
+      }, 1200);
     } catch (e) {
       error = e instanceof Error ? e.message : "업로드 실패";
-    } finally {
-      uploading = false;
+      uploadStatus = "idle";
       busyMode = null;
     }
   }
 
-  function handleDrop(e: DragEvent) {
+  async function handleDrop(e: DragEvent) {
     e.preventDefault();
     dragOver = false;
-
     if (e.dataTransfer?.files) {
-      if (files) {
-        const dt = new DataTransfer();
-        for (const f of files) dt.items.add(f);
-        for (const f of e.dataTransfer.files) dt.items.add(f);
-        files = dt.files;
-      } else {
-        files = e.dataTransfer.files;
-      }
+      await processAndSetFiles(e.dataTransfer.files);
     }
   }
 
@@ -179,19 +218,15 @@
     e.preventDefault();
     dragOver = true;
   }
-
   function handleDragLeave() {
     dragOver = false;
   }
 
   function removeFile(index: number) {
     if (!files) return;
-
     const dt = new DataTransfer();
     for (let i = 0; i < files.length; i++) {
-      if (i !== index) {
-        dt.items.add(files[i]);
-      }
+      if (i !== index) dt.items.add(files[i]);
     }
     files = dt.files.length > 0 ? dt.files : null;
   }
@@ -262,11 +297,19 @@
     />
 
     <div class="input-actions-row">
-      <button class="fluent-btn" onclick={handleFileClick}>
+      <button
+        class="fluent-btn"
+        onclick={handleFileClick}
+        disabled={uploadStatus !== "idle"}
+      >
         <span class="icon">📂</span>
         <span>파일 선택</span>
       </button>
-      <button class="fluent-btn camera-btn" onclick={handleCameraClick}>
+      <button
+        class="fluent-btn camera-btn"
+        onclick={handleCameraClick}
+        disabled={uploadStatus !== "idle"}
+      >
         <span class="icon">📸</span>
         <span>카메라 촬영</span>
       </button>
@@ -274,17 +317,23 @@
   </div>
 
   <!-- 드래그 영역 안내 -->
-  <div class="drop-hint">
-    <span class="drop-icon">↓</span>
-    <span>또는 파일을 여기에 드래그하세요</span>
-  </div>
+  {#if uploadStatus === "idle" && (!files || files.length === 0)}
+    <div class="drop-hint">
+      <span class="drop-icon">↓</span>
+      <span>또는 파일을 여기에 드래그하세요</span>
+    </div>
+  {/if}
 
   <!-- 파일 목록 -->
   {#if files && files.length > 0}
     <div class="file-section">
       <div class="file-section-header">
         <h3>{files.length}개 파일 선택됨</h3>
-        <button class="clear-btn" onclick={clearAll}>전체 삭제</button>
+        <button
+          class="clear-btn"
+          onclick={clearAll}
+          disabled={uploadStatus !== "idle"}>전체 삭제</button
+        >
       </div>
 
       <div class="file-grid">
@@ -295,6 +344,7 @@
               class="remove-btn"
               onclick={() => removeFile(i)}
               aria-label="파일 제거"
+              disabled={uploadStatus !== "idle"}
             >
               <svg
                 width="16"
@@ -320,17 +370,53 @@
     </div>
   {/if}
 
-  <!-- Analysis Mode Selection with Hierarchy -->
+  <!-- Analysis Mode Selection / Loading State -->
   <div
     class="mode-selection"
     class:hidden={!files || files.length === 0}
     bind:this={modeSelectionNode}
   >
-    {#if uploading}
-      <!-- Feedback State: Loading -->
-      <div class="loading-state">
-        <div class="spinner"></div>
-        <span>분석 중입니다...</span>
+    {#if uploadStatus !== "idle" || isProcessingPdf}
+      <!-- Staged Loading State (Shared for PDF conversion and Server Upload) -->
+      <div
+        class="loading-card {uploadStatus} {isProcessingPdf
+          ? 'pdf-processing'
+          : ''}"
+      >
+        <div class="loading-icon-wrapper">
+          {#if isProcessingPdf}
+            <span class="mode-icon-lg loader-spin">📄</span>
+          {:else if busyMode === "FAST"}
+            <span class="mode-icon-lg">⚡</span>
+          {:else}
+            <span class="mode-icon-lg">🤖</span>
+          {/if}
+        </div>
+
+        <div class="loading-content">
+          <div class="loading-text">
+            {#if isProcessingPdf}
+              <span class="primary-msg">PDF 이미지로 변환 중...</span>
+              <span class="sub-msg"
+                >브라우저에서 직접 변환하여 안정성을 높입니다</span
+              >
+            {:else if uploadStatus === "uploading"}
+              <span class="primary-msg">파일을 서버로 전송 중...</span>
+              <span class="sub-msg">잠시만 기다려주세요</span>
+            {:else}
+              <span class="primary-msg success">업로드 완료!</span>
+              <span class="sub-msg">분석 페이지로 이동합니다...</span>
+            {/if}
+          </div>
+
+          <div class="progress-bar-container">
+            <div
+              class="progress-bar"
+              class:navigating={uploadStatus === "navigating"}
+              class:infinite={isProcessingPdf || uploadStatus === "uploading"}
+            ></div>
+          </div>
+        </div>
       </div>
     {:else}
       <!-- Secondary Action: Reset -->
@@ -385,35 +471,24 @@
 </div>
 
 <style>
-  /* Fluent Design System Variables */
+  /* Base Styles from previous version preserved */
   .upload-panel {
     padding: 40px 32px;
     max-width: 560px;
     margin: 0 auto;
-
-    /* Fluent Light Card */
-    background: var(--fluent-bg-layer); /* White */
+    background: var(--fluent-bg-layer);
     border: 1px solid var(--fluent-border-subtle);
-    border-radius: 8px; /* Classic Office Radius */
+    border-radius: 8px;
     box-shadow: var(--fluent-shadow-8);
-
     position: relative;
     overflow: hidden;
     transition: all 0.2s ease;
   }
-
-  /* Remove noise/gradient overlay */
-  .upload-panel::before {
-    display: none;
-  }
-
   .upload-panel.drag-over {
-    background: #f0f8ff; /* Lightest Blue */
+    background: #f0f8ff;
     border-color: var(--fluent-accent);
     box-shadow: 0 0 0 2px var(--fluent-accent);
   }
-
-  /* Header */
   .panel-header {
     text-align: center;
     display: flex;
@@ -422,18 +497,16 @@
     gap: 12px;
     margin-bottom: 24px;
   }
-
   .icon-container {
     width: 64px;
     height: 64px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: #eff6fc; /* Light Blue tint */
-    border-radius: 50%; /* Circle icon generic to Office */
+    background: #eff6fc;
+    border-radius: 50%;
     color: var(--fluent-accent);
   }
-
   h2 {
     margin: 0;
     font-size: 24px;
@@ -441,13 +514,13 @@
     color: var(--fluent-text-primary);
     letter-spacing: -0.02em;
   }
-
   .subtitle {
     margin: 0;
     font-size: 14px;
     color: var(--fluent-text-secondary);
   }
 
+  /* Buttons & Interactions */
   .fluent-btn {
     flex: 1;
     display: flex;
@@ -455,42 +528,61 @@
     justify-content: center;
     gap: 10px;
     padding: 14px 20px;
-
-    /* Jewel-tone Green 3D for Input Actions */
-    background: var(--btn-success-bg);
-    border: 1px solid var(--btn-success-border);
-    border-radius: 12px;
-
-    color: white;
+    background: var(--btn-noir-bg);
+    border: 1px solid var(--btn-noir-border);
+    border-radius: 8px;
+    color: var(--btn-noir-text);
     font-size: 14px;
-    font-weight: 700; /* Bolder text */
+    font-weight: 600;
     cursor: pointer;
-    box-shadow: var(--btn-3d-shadow);
-
-    transition: all 0.2s ease;
+    box-shadow: var(--fluent-shadow-2);
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  .fluent-btn:hover {
-    box-shadow: var(--btn-3d-hover-shadow);
-    filter: brightness(1.1);
-    transform: translateY(-2px);
-  }
-
-  .fluent-btn:active {
-    transform: translateY(1px);
-    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
-  }
-
-  .fluent-btn:active {
-    transform: scale(0.98);
-    background: rgba(255, 255, 255, 0.05);
-  }
-
-  .camera-btn:hover {
+  .fluent-btn:hover:not(:disabled) {
+    background: white;
     border-color: var(--fluent-accent);
+    color: var(--fluent-accent);
+    box-shadow: var(--fluent-shadow-4);
+    transform: translateY(-1px);
+  }
+  .fluent-btn:active:not(:disabled) {
+    transform: scale(0.95); /* Tactile Feedback */
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  .fluent-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
 
-  /* Drop Hint */
+  /* File Section */
+  .file-section {
+    width: 100%;
+    background: #faf9f8;
+    border: 1px solid var(--fluent-border-default);
+    border-radius: 4px;
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+  .input-guidance {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 12px;
+  }
+  .input-label {
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--fluent-accent-dark);
+  }
+  .helper-text {
+    font-size: 0.8rem;
+    color: #94a3b8;
+  }
+  .input-actions-row {
+    display: flex;
+    gap: 20px;
+  }
+
   .drop-hint {
     display: flex;
     align-items: center;
@@ -501,12 +593,11 @@
     border-radius: 8px;
     font-size: 13px;
     color: var(--fluent-accent-light);
+    margin-bottom: 24px;
   }
-
   .drop-icon {
     animation: bounce 1.5s infinite;
   }
-
   @keyframes bounce {
     0%,
     100% {
@@ -517,29 +608,18 @@
     }
   }
 
-  /* File Section */
-  .file-section {
-    width: 100%;
-    background: #faf9f8; /* Very Light Grey */
-    border: 1px solid var(--fluent-border-default);
-    border-radius: 4px;
-    padding: 16px;
-  }
-
   .file-section-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
   }
-
   .file-section-header h3 {
     margin: 0;
     font-size: 13px;
     font-weight: 600;
     color: var(--fluent-text-primary);
   }
-
   .clear-btn {
     padding: 4px 8px;
     background: transparent;
@@ -549,41 +629,29 @@
     font-weight: 600;
     cursor: pointer;
   }
-
   .clear-btn:hover {
     text-decoration: underline;
-    background: transparent;
   }
 
-  /* File Grid */
   .file-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
     gap: 12px;
   }
-
   .file-card {
     position: relative;
     aspect-ratio: 1;
     border-radius: 12px;
     overflow: hidden;
-    background: rgba(0, 0, 0, 0.3);
+    background: #ddd;
     border: 1px solid var(--fluent-border-subtle);
-    transition: all 0.15s ease;
     box-shadow: var(--fluent-shadow-2);
   }
-
-  .file-card:hover {
-    border-color: var(--fluent-border-hover);
-    transform: translateY(-2px);
-  }
-
   .file-card img {
     width: 100%;
     height: 100%;
     object-fit: cover;
   }
-
   .remove-btn {
     position: absolute;
     top: 6px;
@@ -594,23 +662,20 @@
     align-items: center;
     justify-content: center;
     background: rgba(0, 0, 0, 0.6);
-    backdrop-filter: blur(10px);
     border: none;
     border-radius: 4px;
     color: white;
     cursor: pointer;
     opacity: 0;
-    transition: all 0.15s ease;
+    transition: all 0.2s;
   }
-
   .file-card:hover .remove-btn {
     opacity: 1;
   }
-
   .remove-btn:hover {
     background: var(--fluent-danger);
+    transform: scale(1.1);
   }
-
   .file-info {
     position: absolute;
     bottom: 0;
@@ -620,47 +685,25 @@
     background: linear-gradient(transparent, rgba(0, 0, 0, 0.8));
     display: flex;
     flex-direction: column;
-    gap: 2px;
   }
-
   .file-name {
     font-size: 11px;
-    color: var(--fluent-text);
+    color: white;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
   }
-
   .file-size {
     font-size: 10px;
-    color: var(--fluent-text-tertiary);
+    color: #ccc;
   }
 
-  .input-actions-row {
-    display: flex;
-    gap: 20px; /* Increased spacing for better visibility */
-  }
-
-  .input-label {
-    font-size: 1rem;
-    font-weight: 700;
-    color: var(--fluent-accent-dark); /* Dark Navy for authority */
-  }
-
-  /* Analyze Button */
   /* Mode Selection */
   .mode-selection {
     display: flex;
     gap: 12px;
     width: 100%;
   }
-
-  @media (max-width: 480px) {
-    .mode-selection {
-      flex-direction: column;
-    }
-  }
-
   .mode-selection.hidden {
     display: none;
   }
@@ -672,159 +715,197 @@
     justify-content: center;
     gap: 12px;
     padding: 16px;
-    border: 1px solid transparent;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
-    transition: background 0.1s;
-    position: relative;
-    overflow: hidden;
-  }
-
-  .analyze-btn:disabled:not(.is-busy) {
-    background: #f3f2f1;
-    color: #a19f9d;
-    cursor: not-allowed;
-    border-color: #e1dfdd;
-  }
-
-  /* Analyze Button - Premium Blue Gradient */
-  .analyze-btn.multi-agent,
-  .analyze-btn.fast-track {
     background: var(--btn-primary-bg);
     border: 1px solid var(--btn-primary-border);
     color: white;
     box-shadow: var(--btn-3d-shadow);
     border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.1s cubic-bezier(0.4, 0, 0.2, 1);
   }
-
-  .analyze-btn.multi-agent:hover,
-  .analyze-btn.fast-track:hover {
+  .analyze-btn:hover:not(:disabled) {
     box-shadow: var(--btn-3d-hover-shadow);
     transform: translateY(-2px);
     filter: brightness(1.1);
   }
-
-  .analyze-btn.multi-agent:active,
-  .analyze-btn.fast-track:active {
-    transform: translateY(1px);
+  .analyze-btn:active:not(:disabled) {
+    transform: scale(0.95); /* Tactile Feedback */
     box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
   }
-
-  /* Remove Jewel/3D Styles */
-  .analyze-btn.fast-track,
-  .analyze-btn.multi-agent {
-    /* Reset specific 3D styles */
-    border: none;
+  .analyze-btn:disabled {
+    background: #f3f2f1;
+    color: #a19f9d;
+    cursor: not-allowed;
+    border-color: #e1dfdd;
+    box-shadow: none;
   }
-
+  .btn-text {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+  }
   .btn-text .sub {
     font-size: 0.75rem;
     opacity: 0.8;
   }
 
-  /* Secondary Button (Reset) - Standard Outline */
+  /* Secondary Reset Button */
   .btn-secondary {
     padding: 0 1.5rem;
     background: #ffffff;
-    border: 1px solid #cbd5e1; /* Slate 300 */
-    color: #475569; /* Slate 600 */
+    border: 1px solid #cbd5e1;
+    color: #475569;
     border-radius: 8px;
     font-weight: 600;
     cursor: pointer;
-    transition: all 0.1s;
     height: 56px;
+    transition: all 0.1s;
   }
-
   .btn-secondary:hover {
-    background: #f8fafc; /* Slate 50 */
+    background: #f8fafc;
     border-color: #475569;
     color: #0f172a;
   }
-
-  /* Input Actions (File/Camera) - Noir/Slate Style */
-  .fluent-btn {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 14px 20px;
-
-    background: var(--btn-noir-bg);
-    border: 1px solid var(--btn-noir-border);
-    border-radius: 8px;
-
-    color: var(--btn-noir-text);
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    box-shadow: var(--fluent-shadow-2);
-
-    transition: all 0.1s ease;
+  .btn-secondary:active {
+    transform: scale(0.95);
   }
 
-  .fluent-btn:hover {
-    background: white;
-    border-color: var(--fluent-accent); /* Tech Blue hover */
-    color: var(--fluent-accent);
-    box-shadow: var(--fluent-shadow-4);
-    transform: translateY(-1px);
-  }
-
-  .loading-state {
+  /* LOADING STATE - NEW DESIGN */
+  .loading-card {
+    width: 100%;
+    padding: 20px;
     background: #f8fafc;
     border: 1px solid #e2e8f0;
-    color: #334155;
-    font-size: 0.95rem;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    transition: all 0.3s ease;
   }
 
-  .spinner {
-    width: 20px;
-    height: 20px;
-    border: 3px solid rgba(37, 99, 235, 0.2); /* Faint Blue */
-    border-top-color: var(--fluent-accent); /* Tech Blue */
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+  .loading-card.navigating {
+    background: #ecfdf5; /* Light Green */
+    border-color: #34d399;
+    animation: pulse 2s infinite;
   }
 
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
+  @keyframes pulse {
+    0% {
+      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.4);
+    }
+    70% {
+      box-shadow: 0 0 0 10px rgba(52, 211, 153, 0);
+    }
+    100% {
+      box-shadow: 0 0 0 0 rgba(52, 211, 153, 0);
     }
   }
 
-  .btn-text {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    text-align: left;
-    line-height: 1.25;
-  }
-
-  .main {
-    font-weight: 700;
-    font-size: 1rem;
-  }
-
-  .sub {
-    font-size: 0.8rem;
-    opacity: 0.85;
-    font-weight: 400;
-  }
-
-  /* Error Toast */
-  .error-toast {
+  .loading-icon-wrapper {
+    width: 50px;
+    height: 50px;
+    background: white;
+    border-radius: 50%;
     display: flex;
     align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  .mode-icon-lg {
+    font-size: 28px;
+  }
+
+  .loading-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
     gap: 10px;
+  }
+  .loading-text {
+    display: flex;
+    flex-direction: column;
+  }
+  .primary-msg {
+    font-weight: 700;
+    color: #334155;
+    font-size: 0.95rem;
+  }
+  .primary-msg.success {
+    color: #059669;
+  }
+  .sub-msg {
+    font-size: 0.8rem;
+    color: #64748b;
+  }
+
+  .progress-bar-container {
     width: 100%;
-    padding: 14px 16px;
-    background: #fef2f2;
-    border: 1px solid #fca5a5;
-    border-radius: 6px;
-    color: #991b1b;
-    font-size: 14px;
-    margin-top: 12px;
+    height: 6px;
+    background: #e2e8f0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    width: 60%;
+    background: #3b82f6;
+    border-radius: 3px;
+    animation: loading 2s infinite ease-in-out;
+    transition: all 0.3s;
+  }
+  .progress-bar.navigating {
+    width: 100%;
+    background: #10b981;
+    animation: none;
+  }
+
+  .progress-bar.infinite {
+    animation: loading 2s infinite ease-in-out;
+  }
+
+  .pdf-processing {
+    background: #f0f9ff !important;
+    border-color: #7dd3fc !important;
+  }
+
+  .loader-spin {
+    animation: spin 3s infinite linear;
+    display: inline-block;
+  }
+
+  @keyframes spin {
+    from {
+      transform: rotateY(0deg);
+    }
+    to {
+      transform: rotateY(360deg);
+    }
+  }
+
+  @keyframes loading {
+    0% {
+      transform: translateX(-100%);
+    }
+    100% {
+      transform: translateX(250%);
+    }
+  }
+
+  .error-toast {
+    position: absolute;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #fee2e2;
+    color: #dc2626;
+    padding: 10px 20px;
+    border-radius: 20px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    font-size: 0.9rem;
+    border: 1px solid #fecaca;
   }
 </style>

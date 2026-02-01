@@ -31,6 +31,7 @@ import {
   addAgentLog,
   completeAgentLog,
   completeRunLog,
+  logExecutionCheckpoint,
   type OrchestratorSummary
 } from './agentLogger';
 
@@ -71,6 +72,7 @@ async function uploadImagesToSupabase(runId: string, images: { base64: string; m
   const { env } = await import('$env/dynamic/private');
   if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
     console.warn('[Orchestrator] Supabase config missing, skipping cloud upload.');
+    logExecutionCheckpoint(runId, 'uploadImagesToSupabase', 'Supabase config missing. Skipping upload.');
     return [];
   }
 
@@ -78,21 +80,28 @@ async function uploadImagesToSupabase(runId: string, images: { base64: string; m
     const { uploadImage, getPublicUrl } = await import('./services/supabase_storage');
     const urls: string[] = [];
 
+    logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Starting upload for ${images.length} images.`);
+
     for (let i = 0; i < images.length; i++) {
       const img = images[i];
       const buffer = Buffer.from(img.base64, 'base64');
-      const fileName = `${runId}/page_${i + 1}.${img.mimeType.split('/')[1] || 'png'}`;
+      const fileExt = img.mimeType.split('/')[1] || 'png';
+      const fileName = `${runId}/page_${i + 1}.${fileExt}`;
 
+      logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Uploading image ${i + 1}/${images.length}: ${fileName}`);
       await uploadImage(buffer, fileName, img.mimeType);
+
       const url = getPublicUrl(fileName);
+      logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Image ${i + 1} uploaded. URL: ${url}`);
       urls.push(url);
     }
 
     return urls;
   } catch (error) {
     console.error('[Orchestrator] Supabase Upload failed:', error);
-    // User requested: "Don't bend to local" -> throwing error instead of fallback if config exists
-    throw new Error(`Supabase upload failed: ${error instanceof Error ? error.message : String(error)}`);
+    const errMsg = error instanceof Error ? error.message : String(error);
+    logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `UPLOAD FAILED: ${errMsg}`);
+    throw new Error(`Supabase upload failed: ${errMsg}`);
   }
 }
 
@@ -140,6 +149,7 @@ export async function initializeOrchestrator(): Promise<void> {
   if (cleanedCount > 0) {
     console.log(`[Orchestrator] Cleaned up ${cleanedCount} stale running sessions on startup.`);
   }
+  logExecutionCheckpoint('SYSTEM', 'initializeOrchestrator', 'Orchestrator Initialized');
 
   // Global error handlers to catch "King" errors before process dies
   if (!process.listenerCount('uncaughtException')) {
@@ -185,7 +195,12 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     // Ensure initialization on first run
     console.log(`[Orchestrator] Initializing orchestrator for run ${runId}...`);
     await initializeOrchestrator();
+<<<<<<< Updated upstream
     console.log(`[Orchestrator] Updating run status to 'running' for ${runId}...`);
+=======
+    await initializeOrchestrator();
+    logExecutionCheckpoint(runId, 'executeRun', `Starting run (mode=${mode})`);
+>>>>>>> Stashed changes
     await updateRunStatus(runId, 'running');
 
     console.log(`[Orchestrator-DEBUG] executeRun called with runId=${runId}, mode="${mode}"`);
@@ -199,15 +214,27 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     if (!run || run.files.length === 0) throw new Error('No files to process');
 
     const { prepareImagesForAnalysis } = await import('./services/converter');
-    const images = await prepareImagesForAnalysis(run.files[0]);
 
-    if (images.length === 0) throw new Error('No images extracted from files or file is corrupted');
+    // Process all files to collect all pages/images
+    const images: { base64: string; mimeType: string }[] = [];
+    for (const filePath of run.files) {
+      const extracted = await prepareImagesForAnalysis(filePath);
+      images.push(...extracted);
+    }
+
+    logExecutionCheckpoint(runId, 'executeRun', `Images prepared: ${images.length} pages from ${run.files.length} files`);
+
+    if (images.length === 0) throw new Error('No images extracted from files or files are corrupted');
+
 
     // ============================================
     // Supabase Upload (New)
     // ============================================
     await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
+    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
+    logExecutionCheckpoint(runId, 'executeRun', `Uploading images to Supabase...`);
     const imageUrls = await uploadImagesToSupabase(runId, images);
+    logExecutionCheckpoint(runId, 'executeRun', `Supabase upload done. URLs: ${imageUrls.length}`);
 
     const { updateRunStorageProvider } = await import('./storage');
     if (imageUrls.length > 0) {
@@ -251,6 +278,8 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
       const MAX_ATTEMPTS = 2;
       let fastResult;
 
+      logExecutionCheckpoint(runId, 'FastExtractor', `Entering Retry Loop. Max: ${MAX_ATTEMPTS}`);
+
       // Retry Loop
       while (attempt <= MAX_ATTEMPTS) {
         const feedback = attempt > 1 ? '지분율 합계가 100%가 아니거나, 지분율이 0%인 주주가 발견되었습니다. 다시 정밀하게 계산해 주세요.' : undefined;
@@ -260,7 +289,10 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         }
 
         console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
-        fastResult = await runFastExtractor(images, feedback, imageUrls);
+        console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
+        logExecutionCheckpoint(runId, 'FastExtractor', `Calling runFastExtractor (Attempt ${attempt})`);
+        fastResult = await runFastExtractor(runId, images, feedback, imageUrls);
+        logExecutionCheckpoint(runId, 'FastExtractor', `runFastExtractor returned. Valid: ${fastResult.is_valid}`);
 
         // AI Initial Gatekeeping
         if (!fastResult.is_valid) {
@@ -512,6 +544,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
       emitCompleted(runId);
 
       console.log(`[Orchestrator] Run ${runId} COMPLETED (FAST) in ${duration} ms`);
+      logExecutionCheckpoint(runId, 'executeRun', `FAST Track COMPLETED`);
       return; // End execution for FAST mode here
 
     } else {
@@ -612,6 +645,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     const msg = error instanceof Error ? error.message : String(error);
     const stack = error instanceof Error ? error.stack : '';
     console.error(`[Orchestrator] Run ${runId} FAILED at ${currentStage}: `, msg, stack);
+    logExecutionCheckpoint(runId, 'executeRun', `CRITICAL ERROR at ${currentStage}: ${msg}`);
     errors.push(msg);
 
     // Check if this was a user cancellation
@@ -662,7 +696,7 @@ async function runStageB(
   await updateRunStatus(runId, 'running', 'B');
 
   addAgentLog(runId, 'B_Gatekeeper', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 문서를 분석합니다 (페이지 수: ${images.length}, URL: ${imageUrls?.length || 0})`);
-  const assessment = await runGatekeeperAgent(images, imageUrls);
+  const assessment = await runGatekeeperAgent(runId, images, imageUrls);
   await saveArtifact(runId, 'B', 'assessment', assessment);
 
   // 분석 결과 로깅
@@ -750,7 +784,7 @@ async function runStageC(
   await updateRunStatus(runId, 'running', 'C');
 
   addAgentLog(runId, 'C_Extractor', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 테이블 데이터를 추출합니다 (페이지 수: ${images.length}, URL: ${imageUrls?.length || 0})`);
-  const extractorOutput = await runExtractorAgent(images, assessment, imageUrls);
+  const extractorOutput = await runExtractorAgent(runId, images, assessment, imageUrls);
   await saveArtifact(runId, 'C', 'extractor_output', extractorOutput);
 
   // 추출 결과 로깅
@@ -925,7 +959,7 @@ async function runStageD(
   await updateRunStatus(runId, 'running', 'D');
 
   addAgentLog(runId, 'D_Normalizer', 'INFO', 'AI 모델 호출', `${MODEL}를 사용하여 데이터를 정규화합니다`);
-  const normalizedDoc = await runNormalizerAgent(extractorOutput);
+  const normalizedDoc = await runNormalizerAgent(runId, extractorOutput);
 
   // 후처리: 지분율 자동 계산 및 보정
   calculateMissingRatios(normalizedDoc);
@@ -1228,11 +1262,12 @@ async function runStageINSIGHTS(
   console.log(`[INSIGHTS] Step 3: addAgentLog...`);
   addAgentLog(runId, 'INS_Analyst', 'INFO', '분석 서비스 실행', '결정적 분석 알고리즘을 수행합니다 (No LLM)');
 
+
   console.log(`[INSIGHTS] Step 4: Creating AnalystService...`);
   const analyst = new AnalystService();
   console.log(`[INSIGHTS] Step 5: Calling analyst.generateReport()...`);
   try {
-    const answerSet = await analyst.generateReport(normalizedDoc, validationReport, imageUrls);
+    const answerSet = await analyst.generateReport(runId, normalizedDoc, validationReport, imageUrls);
 
     await saveArtifact(runId, 'INSIGHTS', 'answer_set', answerSet);
 

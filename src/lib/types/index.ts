@@ -436,7 +436,7 @@ export interface InsightsAnswerSet {
 // Stage Event (타임라인 단위)
 // ============================================
 
-export type StageName = 'B' | 'C' | 'D' | 'E' | 'INSIGHTS' | 'FastExtractor';
+export type StageName = 'B' | 'C' | 'D' | 'E' | 'INSIGHTS' | 'FastExtractor' | 'FAST';
 export type NextAction = 'AUTO_NEXT' | 'AUTO_RETRY' | 'HITL' | 'REJECT';
 
 export interface StageEvent {
@@ -473,12 +473,14 @@ export type ReasonCode =
   | 'ENTITY_TYPE_AMBIGUOUS';
 
 export interface HITLPacket {
-  id: string;
+  packet_id: string; // Added packet_id
+  id: string; // keeping id for backward compatibility
   doc_id: string;
   run_id: string;
   stage: StageName;
-  reason_codes: ReasonCode[];
-  required_action: RequiredAction;
+  status?: 'PENDING' | 'RESOLVED' | 'IGNORED';
+  reason_codes: string[]; // Relaxed type for now
+  required_action: string; // Relaxed type for now
   triggers: RuleTrigger[];
   operator_notes: string[];
   payload: {
@@ -498,6 +500,13 @@ export interface HITLPacket {
     document_date: string | null;
     shareholder_names: string[];
   };
+  context_data?: any;
+  document_snapshot?: {
+    company_name: string;
+    document_date: string;
+    shareholder_count: number;
+    preview_names: string[];
+  };
 }
 
 // ============================================
@@ -513,9 +522,11 @@ export interface Run {
   created_at: string;
   updated_at: string;
   current_stage?: StageName;
+  error?: string; // Added error
   error_message?: string;
   execution_mode?: 'FAST' | 'MULTI_AGENT';
   storage_provider?: 'SUPABASE' | 'LOCAL';
+  file_metadata?: Record<string, { original_name: string }>;
 }
 
 // ============================================

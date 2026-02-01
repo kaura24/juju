@@ -1,17 +1,22 @@
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v2.6.0 (juju-data integrated)
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v3.0.0 (Vercel Optimized)
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
-## 🚀 v2.6.0 Major Update: Full Persistence Architecture (juju-data)
-**Vercel Serverless 환경의 파일 시스템 제약을 영구적으로 해결하기 위해 Supabase Storage 기반의 Full Persistence 아키텍처를 도입했습니다.**
+## 🚀 v3.0.0 Major Update: Vercel & PDF Optimization
+**서버리스 환경(Vercel)의 물리적 한계를 극복하고 대규모 문서 분석의 안정성을 확보하기 위해 아키텍처를 전면 고도화했습니다.**
 
-### 💾 juju-data Bucket Integration
-기존에는 이미지와 결과물이 서로 다른 버킷 혹은 `/tmp`에 파편화되어 있었으나, v2.6.0부터는 `juju-data` 버킷을 중심으로 모든 데이터가 관리됩니다.
+### 📄 Client-side PDF Processing
+Vercel 서버의 메모리/타임아웃 이슈를 원천 차단하기 위해 PDF 처리 방식을 혁신했습니다.
+1.  **Browser Conversion**: 이제 PDF 변환이 서버가 아닌 **사용자의 브라우저**에서 직접 수행됩니다. (`pdfjs-dist` 활용)
+2.  **Zero-Error Deployment**: 서버 네이티브 종속성(`node-canvas` 등) 없이도 모든 환경에서 동일한 분석 성공률을 보장합니다.
+3.  **Visual Feedback**: 변환 과정을 시각화하여 대용량 PDF 처리 시에도 매끄러운 사용자 경험을 제공합니다.
 
-1.  **Metadata Persistence**: 분석 진행 상태(Run), 이벤트 로그, 분석 결과(JSON)를 `juju-data` 버킷의 전용 폴더에 저장합니다.
-2.  **Raw File Persistence**: 업로드된 원본 파일(PDF/이미지)을 `juju-data/uploads`에 보관하여, 서버리스 인스턴스가 바뀌어도 분석 프로세스가 중단되지 않습니다.
-3.  **Unified Storage Layer**: 로컬 개발 시에는 파일 시스템을, Vercel 배포 시에는 Supabase를 자동으로 사용하는 하이브리드 로직이 적용되었습니다.
+### 📚 Multi-Page & Multi-File Support
+단일 이미지 기반 분석을 넘어, 실무 환경의 복잡한 문서를 완벽히 지원합니다.
+1.  **Consolidated Analysis**: 여러 장의 이미지나 다중 페이지 PDF를 하나의 분석 세션으로 묶어 통합 통계(지분 합계 등)를 산출합니다.
+2.  **Sequential Processing**: 대량의 페이지도 오케스트레이터가 순차적으로 처리하여 누락 없는 데이터를 추출합니다.
 
+<<<<<<< Updated upstream
 
 ### 💾 Supabase Storage Architecture
 기존 `/tmp` 디렉토리를 사용하는 임시 방편을 넘어, 엔터프라이즈급 안정을 위한 **클라우드 스토리지 파이프라인**을 구축했습니다.
@@ -30,6 +35,13 @@ SUPABASE_URL="https://your-project.supabase.co"
 SUPABASE_SERVICE_KEY="your-service-role-key"  # RLS 제약 없이 작동 (서버 전용)
 SUPABASE_ANON_KEY="your-anon-key"              # Fallback (권장하지 않음)
 ```
+=======
+### ⚡ UI/UX Performance & Reliability
+결과 확인 속도를 극대화하고 상태 동기화의 정밀도를 높였습니다.
+1.  **Instant Result Rendering**: 분석 결과를 가로막던 모든 CSS 애니메이션을 제거하여 완료 즉시 데이터를 확인할 수 있습니다.
+2.  **State Lock Mechanism**: 분석 완료 후 폴링(Polling) 오류로 인해 화면이 다시 로딩 상태로 돌아가는 현상을 방지하는 상태 고정 로직을 도입했습니다.
+3.  **Fail-safe SSE**: Sever-Sent Events 연결이 끊겨도 백업 폴링이 즉각 개입하여 분석 진행도를 실시간으로 추적합니다.
+>>>>>>> Stashed changes
 
 #### Vercel 프로덕션 환경 설정
 **중요:** Vercel 대시보드에서 반드시 다음 환경 변수를 설정해야 합니다.
@@ -182,8 +194,8 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 
 ---
 
-**Last Updated**: 2026-01-27
-**System Version**: 2.6.0 (juju-data Integrated) - Vercel & Supabase Hybrid Architecture
+**Last Updated**: 2026-02-01
+**System Version**: 3.0.0 (Vercel & PDF Optimized) - Hybrid Architecture
 **Maintainer**: JuJu Dev Team
 
 ---

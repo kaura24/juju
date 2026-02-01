@@ -6,15 +6,16 @@ import type { NormalizedDoc, ValidationReport } from '$lib/types';
 import { ensureApiKey } from '../agents';
 
 const AnalystSynthesisSchema = z.object({
-    synthesis_reasoning: z.union([
-        z.string(),
-        z.array(z.any()).transform(arr => {
-            return arr.map(item => {
+    synthesis_reasoning: z.any().transform(val => {
+        if (typeof val === 'string') return val;
+        if (Array.isArray(val)) {
+            return val.map(item => {
                 if (typeof item === 'string') return item;
                 return JSON.stringify(item);
             }).join('\n');
-        })
-    ]).optional().default("분석 완료").describe("데이터 정합성 및 추출 결과에 대한 종합 분석 소견"),
+        }
+        return JSON.stringify(val, null, 2);
+    }).optional().default("분석 완료").describe("데이터 정합성 및 추출 결과에 대한 종합 분석 소견"),
     synthesis_confidence: z.number().optional().default(0.5).describe("분석 결과에 대한 신뢰도 (0.0 ~ 1.0)"),
     is_decidable: z.boolean().optional().default(true).describe("최종적으로 이 문서를 확정된 주주명부로 볼 수 있는지 여부"),
     major_shareholder_name: z.string().nullable().optional().default(null).describe("판별된 최대주주 성명"),
@@ -41,8 +42,9 @@ const INSTRUCTIONS = `
 
 3. **심사 소견 작성** (\`synthesis_reasoning\`):
    - 금융권 심사 보고서 형식의 간결하고 전문적인 어투 사용
-   - **데이터 근거 중심 설명 (JSON 기반)**: 단순히 "오류가 있다"고 하지 말고, 제공된 [Extracted Data]와 [Validation Report] JSON 데이터를 분석하여 구체적인 이유를 설명하십시오.
-     - 예: "Validator의 E-META-002 규칙에 따라 발행일 미상으로 판정됨. 원본 데이터 내에 날짜 형식이 식별되지 않거나 오염되었을 가능성이 큼."
+   - **데이터 근거 중심 설명 (서술형 줄글)**: JSON 구조체가 아닌, 사람이 읽기 편한 하나의 긴 줄글(String)로 작성하십시오.
+   - 제공된 [Extracted Data]와 [Validation Report]를 바탕으로, 정합성 여부와 특이사항을 금융 심사역의 언어로 풀어서 설명하십시오.
+     - 예: "제출된 주주명부상 총 발행주식수는 20,000주로, 개별 주주 보유주식 합계(20,000주)와 일치하여 정합성이 확보됨. 주요 주주인 박중국(70%), 김혜정(30%)의 지분율 합계 또한 100%로 검증됨."
    - **실소유주(Beneficial Owner) 판정 로직 적용**:
      - **1단계 (25% 이상)**: 지분율이 25% 이상인 주주를 우선적으로 나열함.
      - **2단계 (25% 미만)**: 1단계에 해당하는 주주가 한 명도 없는 경우, 가장 지분이 높은 주주 1인을 찾아 **"최대주주 (25% 미만)"**로 독립 기술함.
@@ -67,11 +69,18 @@ const INSTRUCTIONS = `
 `;
 
 export async function runAnalystAgent(
+    runId: string,
     doc: NormalizedDoc,
     validationReport: ValidationReport,
     imageUrls?: string[]
 ): Promise<z.infer<typeof AnalystSynthesisSchema>> {
     console.log(`\n[AnalystAgent] ========== STARTING ==========`);
+
+    // Import logger dynamically to avoid circular dependencies if any
+    const { logExecutionCheckpoint } = await import('../agentLogger');
+
+    logExecutionCheckpoint(runId, 'AnalystAgent', 'Agent initialized. Preparing input...');
+
     console.log(`[AnalystAgent] doc exists: ${!!doc}`);
     console.log(`[AnalystAgent] doc.shareholders: ${doc?.shareholders?.length ?? 'undefined'}`);
     console.log(`[AnalystAgent] doc.document_properties: ${JSON.stringify(doc?.document_properties).slice(0, 100)}`);
@@ -118,17 +127,22 @@ ${JSON.stringify({
 [Validation Report]
 ${JSON.stringify(validationReport, null, 2)}
 
-위 데이터를 바탕으로 종합 분석 소견을 작성하고 최종 결론을 내려줘. 반드시 JSON 형식으로만 응답하세요.
+위 데이터를 바탕으로 종합 분석 소견을 작성하고 최종 결론을 내려줘. 
+반드시 JSON 형식으로 응답하되, \`synthesis_reasoning\` 필드는 JSON 객체가 아닌 **'하나의 긴 문자열(String)'**이어야 합니다. 줄바꿈이 필요한 경우 \\n을 사용하세요.
 `
                 }
             ]
         }
     ];
     console.log(`[AnalystAgent] Input built. Size: ${JSON.stringify(input).length} chars`);
+    logExecutionCheckpoint(runId, 'AnalystAgent', `Sending request to AI (Payload size: ${JSON.stringify(input).length})...`);
 
+    const startTime = Date.now();
     try {
         console.log(`[AnalystAgent] Step 4: Calling openai/agents run()...`);
         const result = await run(agent, input);
+        const duration = Date.now() - startTime;
+        logExecutionCheckpoint(runId, 'AnalystAgent', `AI Response received in ${duration}ms`);
         console.log(`[AnalystAgent] run() completed. Result keys: ${Object.keys(result)}`);
 
         let jsonStr = result.finalOutput || '';
@@ -141,6 +155,9 @@ ${JSON.stringify(validationReport, null, 2)}
         const parsed = JSON.parse(jsonStr.trim());
         return AnalystSynthesisSchema.parse(parsed);
     } catch (err: any) {
+        const duration = Date.now() - startTime;
+        logExecutionCheckpoint(runId, 'AnalystAgent', `ERROR: ${err.message} (after ${duration}ms)`);
+
         console.error('\n\n========== [AnalystAgent] ERROR ==========');
         console.error('[AnalystAgent] Error message:', err?.message);
         console.error('[AnalystAgent] Error name:', err?.name);
