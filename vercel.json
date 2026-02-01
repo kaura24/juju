@@ -1,6 +1,6 @@
 {
   "functions": {
-    "**/*.func/**": {
+    ".vercel/output/functions/**": {
       "includeFiles": "scripts/**"
     }
   }
