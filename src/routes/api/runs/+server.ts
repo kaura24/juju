@@ -74,7 +74,13 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     return json({
       runId: run.id,
       message: `${filePaths.length}개 파일 업로드 완료`,
-      mode: run.execution_mode
+      mode: run.execution_mode,
+      debug: {
+        hasWaitUntil: !!((platform as any)?.waitUntil),
+        executionMode: run.execution_mode,
+        modeFromForm: mode,
+        timestamp: new Date().toISOString()
+      }
     });
 
   } catch (error) {
