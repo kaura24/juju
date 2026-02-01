@@ -23,7 +23,12 @@ export const GET: RequestHandler = async ({ params }) => {
       }, { status: 400 });
     }
     
-    const answerSet = await getArtifact<InsightsAnswerSet>(runId, 'INSIGHTS', 'answer_set');
+    const preferredStage = run.execution_mode === 'FAST' ? 'FAST' : 'INSIGHTS';
+    let answerSet = await getArtifact<InsightsAnswerSet>(runId, preferredStage as any, 'answer_set');
+    if (!answerSet && preferredStage !== 'INSIGHTS') {
+      // Fallback for legacy or mixed-mode runs
+      answerSet = await getArtifact<InsightsAnswerSet>(runId, 'INSIGHTS', 'answer_set');
+    }
     if (!answerSet) {
       return json({ error: 'Result not found' }, { status: 404 });
     }
