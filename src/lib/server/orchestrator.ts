@@ -164,13 +164,17 @@ export async function initializeOrchestrator(): Promise<void> {
 const runLocks = new Set<string>();
 
 export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = 'MULTI_AGENT'): Promise<void> {
+  console.log(`[Orchestrator] === executeRun ENTRY === runId=${runId}, mode=${mode}, locked=${runLocks.has(runId)}`);
+
   // 멱등성 보장: 이미 실행 중이면 중복 실행 방지
   if (runLocks.has(runId)) {
-    console.warn(`[Orchestrator] Run ${runId} is already being processed. Shifting request.`);
+    console.warn(`[Orchestrator] Run ${runId} is already being processed. Rejecting duplicate request.`);
     return;
   }
 
   runLocks.add(runId);
+  console.log(`[Orchestrator] Lock acquired for run ${runId}`);
+
   const startTime = Date.now();
   let currentStage: string = 'INIT';
   const completedStages: string[] = [];
@@ -179,7 +183,9 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
   try {
     // 1. Initial Logging & Status Update (Early update to avoid "Pending" hang in UI)
     // Ensure initialization on first run
+    console.log(`[Orchestrator] Initializing orchestrator for run ${runId}...`);
     await initializeOrchestrator();
+    console.log(`[Orchestrator] Updating run status to 'running' for ${runId}...`);
     await updateRunStatus(runId, 'running');
 
     console.log(`[Orchestrator-DEBUG] executeRun called with runId=${runId}, mode="${mode}"`);

@@ -57,12 +57,18 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
     // [FIX] Trigger execution immediately on the same instance to avoid Vercel FS isolation issues
     // This allows the run to start even if the subsequent /execute request hits a different instance
+    console.log(`[API] Triggering execution for run ${run.id} with mode: ${run.execution_mode || 'MULTI_AGENT (default)'}`);
+
     const executionPromise = executeRun(run.id, run.execution_mode).catch(err => {
-         console.error(`[API] Background execution error:`, err);
+         console.error(`[API] Background execution error for run ${run.id}:`, err);
     });
 
     if ((platform as any)?.waitUntil) {
+        console.log(`[API] Using platform.waitUntil for run ${run.id}`);
         (platform as any).waitUntil(executionPromise);
+    } else {
+        console.warn(`[API] platform.waitUntil not available, execution may be terminated early for run ${run.id}`);
+        // Fire and forget - execution will be resumed by detail page if needed
     }
 
     return json({

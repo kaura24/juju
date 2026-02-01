@@ -42,14 +42,17 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
     console.log(`[API-DEBUG] Selected mode for run ${runId}: ${mode} (from Body: ${body.mode}, from Run: ${run.execution_mode})`);
 
     // 백그라운드에서 실행 (즉시 응답)
-    console.log(`[API] Triggering execution for run ${runId} with mode ${mode}`);
+    console.log(`[API-EXECUTE] Triggering execution for run ${runId} with mode ${mode}`);
     const executionPromise = executeRun(runId, mode).catch(error => {
-      console.error(`[API] Background execution error for run ${runId}:`, error);
+      console.error(`[API-EXECUTE] Background execution error for run ${runId}:`, error);
     });
 
     // Vercel에서 백그라운드 프로세스가 죽지 않도록 대기 요청
     if ((platform as any)?.waitUntil) {
+      console.log(`[API-EXECUTE] Using platform.waitUntil for run ${runId}`);
       (platform as any).waitUntil(executionPromise);
+    } else {
+      console.warn(`[API-EXECUTE] platform.waitUntil not available for run ${runId}, execution may be terminated early`);
     }
 
     return json({
