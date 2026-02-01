@@ -37,8 +37,8 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
     const body = await request.json().catch(() => ({}));
     console.log(`[API-DEBUG] EXECUTE Request for runId=${runId}, Body:`, JSON.stringify(body));
 
-    // 1. 바디에서 모드 추출, 없으면 저장된 값 사용, 둘 다 없으면 기본값(FAST)
-    const mode = body.mode || run.execution_mode || 'FAST';
+    // 1. 바디에서 모드 추출, 없으면 저장된 값 사용, 둘 다 없으면 기본값(MULTI_AGENT)
+    const mode = body.mode || run.execution_mode || 'MULTI_AGENT';
     console.log(`[API-DEBUG] Selected mode for run ${runId}: ${mode} (from Body: ${body.mode}, from Run: ${run.execution_mode})`);
 
     // 백그라운드에서 실행 (즉시 응답)
