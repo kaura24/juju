@@ -12,7 +12,7 @@ export const GET: RequestHandler = async () => {
     
     return json({
       count: packets.length,
-      packets: packets.map(p => ({
+      packets: packets.map((p: any) => ({
         id: p.id,
         runId: p.run_id,
         stage: p.stage,

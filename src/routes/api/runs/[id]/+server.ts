@@ -5,7 +5,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getRun, getStageEvents, getHITLPacketByRunId } from '$lib/server/storage';
-import { MODEL } from '$lib/server/agents';
+import { MODEL, FAST_MODEL } from '$lib/server/agents';
 
 export const GET: RequestHandler = async ({ params }) => {
   try {
@@ -19,6 +19,8 @@ export const GET: RequestHandler = async ({ params }) => {
     const events = await getStageEvents(runId);
     const hitlPacket = await getHITLPacketByRunId(runId);
 
+    const resolvedModel = run.execution_mode === 'FAST' ? FAST_MODEL : MODEL;
+
     return json({
       run: {
         id: run.id,
@@ -28,7 +30,7 @@ export const GET: RequestHandler = async ({ params }) => {
         errorMessage: run.error_message,
         createdAt: run.created_at,
         updatedAt: run.updated_at,
-        model: MODEL,
+        model: resolvedModel,
         storageProvider: run.storage_provider
       },
       events,

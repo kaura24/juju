@@ -8,7 +8,7 @@
 /** File: src/lib/server/agents/fast_extractor.ts */
 import { Agent, run } from '@openai/agents';
 import { z } from 'zod';
-import { MODEL } from '../agents';
+import { FAST_MODEL } from '../agents';
 import { ensureApiKey } from '../agents';
 import { logExecutionCheckpoint } from '../agentLogger';
 
@@ -216,7 +216,7 @@ export async function runFastExtractor(
 
   const agent = new Agent({
     name: 'Fast Extractor',
-    model: MODEL,
+    model: FAST_MODEL,
     instructions: INSTRUCTIONS,
   });
 
@@ -259,7 +259,7 @@ export async function runFastExtractor(
   ];
 
   try {
-    console.log(`[FastExtractor] Model: ${MODEL}`);
+    console.log(`[FastExtractor] Model: ${FAST_MODEL}`);
     console.log(`[FastExtractor] Sending request to AI model (Input Payload Size: ${JSON.stringify(input).length} chars)...`);
     logExecutionCheckpoint(runId, 'FastExtractor', `Sending request to AI Model. Payload size: ${JSON.stringify(input).length}`);
 

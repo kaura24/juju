@@ -110,6 +110,10 @@ export class AnalystService {
                 reason: synthesis.synthesis_reasoning
             };
 
+            const triggerSummary = (vReport.triggers && vReport.triggers.length > 0)
+                ? `\n\n[정합성 검증 요약]\n- ${vReport.triggers.map(t => `${t.rule_id}: ${t.message}`).join('\n- ')}`
+                : '';
+
             return {
                 document_assessment: {
                     is_valid_shareholder_register: 'YES', // Assumed valid if we are here
@@ -147,7 +151,7 @@ export class AnalystService {
 
                 cannot_determine: cannotDetermine,
 
-                synthesis_reasoning: synthesis.synthesis_reasoning,
+                synthesis_reasoning: `${synthesis.synthesis_reasoning || ''}${triggerSummary}`.trim(),
                 synthesis_confidence: synthesis.synthesis_confidence,
 
                 validation_summary: {

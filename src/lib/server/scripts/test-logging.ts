@@ -1,5 +1,5 @@
 
-import { initRunLog, addAgentLog } from '../src/lib/server/agentLogger.ts';
+import { initRunLog, addAgentLog } from '../agentLogger';
 import { join } from 'path';
 import { readFile, unlink } from 'fs/promises';
 

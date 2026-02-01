@@ -22,7 +22,9 @@ import type {
 // ============================================
 
 const config = loadEnvConfig();
-export const MODEL = config.OPENAI_MODEL || 'gpt-4o-mini';  // Switched to lightweight model for speed
+export const MODEL = config.OPENAI_MODEL || 'gpt-4o-mini';
+export const FAST_MODEL = config.OPENAI_FAST_MODEL || 'gpt-5';
+export const EXTRACTOR_MODEL = config.OPENAI_EXTRACTOR_MODEL || 'gpt-5';
 export const FALLBACK_MODEL = 'gpt-4o-mini';
 
 
@@ -623,7 +625,7 @@ const gatekeeperAgent = new Agent({
  */
 const extractorAgent = new Agent({
   name: 'C_Extractor',
-  model: MODEL,
+  model: EXTRACTOR_MODEL,
   instructions: EXTRACTOR_INSTRUCTIONS,
 });
 

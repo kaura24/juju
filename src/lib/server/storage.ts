@@ -208,7 +208,12 @@ export async function createRun(
 export async function getRun(runId: string): Promise<Run | null> {
   return await _load<Run>(DIRS.runs, runId);
 }
-// ... existing code ...
+/**
+ * Run 목록 조회
+ */
+export async function listRuns(): Promise<Run[]> {
+  return await _list<Run>(DIRS.runs);
+}
 
 // ============================================
 // 파일 저장 (기능 유지)
@@ -221,19 +226,8 @@ export async function getRun(runId: string): Promise<Run | null> {
  */
 export async function saveFile(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
-<<<<<<< Updated upstream
-
-  // 파일명을 URL-safe하게 정규화 (한글, 특수문자 제거)
-  const sanitizedName = file.name
-    .replace(/[^\w\s.-]/g, '') // 알파벳, 숫자, ., -, _ 만 허용
-    .replace(/\s+/g, '_')       // 공백을 언더스코어로 변경
-    .replace(/:/g, '-');        // 콜론을 대시로 변경
-
-  const filename = `${uuidv4()}_${sanitizedName}`;
-=======
   const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
   const safeFilename = `${uuidv4()}.${ext}`;
->>>>>>> Stashed changes
 
   if (USE_SUPABASE) {
     try {
@@ -486,4 +480,48 @@ export async function getHITLPacketByRunId(runId: string): Promise<HITLPacket | 
   if (packets.length === 0) return null;
   // Return latest
   return packets.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())[0];
+}
+
+/**
+ * HITL Packet ID로 조회
+ */
+export async function getHITLPacket(packetId: string): Promise<HITLPacket | null> {
+  return await _load<HITLPacket>(DIRS.hitl, packetId);
+}
+
+/**
+ * 대기 중인 HITL 패킷 목록 조회
+ */
+export async function listPendingHITLPackets(): Promise<HITLPacket[]> {
+  const allPackets = await _list<HITLPacket>(DIRS.hitl);
+  return allPackets
+    .filter(p => p.status === 'PENDING')
+    .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+}
+
+/**
+ * HITL 패킷 해결 처리
+ */
+export async function resolveHITLPacket(
+  packetId: string,
+  resolution: {
+    action_taken: string;
+    resolved_by: string;
+    corrections?: Record<string, unknown>;
+  }
+): Promise<void> {
+  const packet = await getHITLPacket(packetId);
+  if (!packet) {
+    throw new Error(`HITL packet not found: ${packetId}`);
+  }
+
+  packet.status = 'RESOLVED';
+  packet.resolved_at = new Date().toISOString();
+  packet.resolution = {
+    action_taken: resolution.action_taken,
+    resolved_by: resolution.resolved_by,
+    corrections: resolution.corrections
+  };
+
+  await _save(DIRS.hitl, packetId, packet);
 }

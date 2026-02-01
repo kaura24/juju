@@ -64,23 +64,15 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     console.log(`[API] Triggering execution for run ${run.id} with mode: ${run.execution_mode || 'MULTI_AGENT (default)'}`);
 
     const executionPromise = executeRun(run.id, run.execution_mode).catch(err => {
-<<<<<<< Updated upstream
-         console.error(`[API] Background execution error for run ${run.id}:`, err);
+      console.error(`[API] Background execution error for run ${run.id}:`, err);
     });
 
     if ((platform as any)?.waitUntil) {
-        console.log(`[API] Using platform.waitUntil for run ${run.id}`);
-        (platform as any).waitUntil(executionPromise);
-    } else {
-        console.warn(`[API] platform.waitUntil not available, execution may be terminated early for run ${run.id}`);
-        // Fire and forget - execution will be resumed by detail page if needed
-=======
-      console.error(`[API] Background execution error:`, err);
-    });
-
-    if ((platform as any)?.waitUntil) {
+      console.log(`[API] Using platform.waitUntil for run ${run.id}`);
       (platform as any).waitUntil(executionPromise);
->>>>>>> Stashed changes
+    } else {
+      console.warn(`[API] platform.waitUntil not available, execution may be terminated early for run ${run.id}`);
+      // Fire and forget - execution will be resumed by detail page if needed
     }
 
     return json({

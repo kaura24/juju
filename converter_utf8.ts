@@ -1,10 +1,8 @@
-/** File: src/lib/server/services/converter.ts */
+﻿/** File: src/lib/server/services/converter.ts */
 /**
- * 파일 변환 서비스
- * - PDF -> Image (PNG/JPG)
+ * ?뚯씪 蹂???쒕퉬?? * - PDF -> Image (PNG/JPG)
  * - TIFF -> Image (PNG/JPG)
- * - AI가 직접 읽지 못하는 형식을 분석 가능하게 변환
- */
+ * - AI媛 吏곸젒 ?쎌? 紐삵븯???뺤떇??遺꾩꽍 媛?ν븯寃?蹂?? */
 
 import { readFile } from 'fs/promises';
 import { createCanvas, Image, loadImage } from '@napi-rs/canvas';
@@ -19,108 +17,55 @@ if (typeof global !== 'undefined') {
 }
 
 /**
- * 이미지 리사이징/보정 헬퍼 (받침 인식 개선)
+ * ?대?吏 由ъ궗?댁쭠 ?ы띁 (OOM 諛⑹?)
  */
-const OCR_UPSCALE_FACTOR = Number(process.env.OCR_UPSCALE_FACTOR || '1.8');
-const OCR_CONTRAST = Number(process.env.OCR_CONTRAST || '1.3');
-const OCR_SHARPEN = Number(process.env.OCR_SHARPEN || '0.6');
-const OCR_MAX_DIMENSION = Number(process.env.OCR_MAX_DIMENSION || '3500');
-
-async function resizeImageIfNeeded(
-    base64: string,
-    mimeType: string,
-    maxDimension: number = OCR_MAX_DIMENSION,
-    upscaleFactor: number = OCR_UPSCALE_FACTOR,
-    contrast: number = OCR_CONTRAST,
-    sharpen: number = OCR_SHARPEN
-): Promise<string> {
+async function resizeImageIfNeeded(base64: string, mimeType: string, maxDimension: number = 2048): Promise<string> {
     const buffer = Buffer.from(base64, 'base64');
     const image = await loadImage(buffer);
 
     // Check dimensions
-    const longest = Math.max(image.width, image.height);
-    let scale = 1;
-
-    if (longest > maxDimension) {
-        scale = maxDimension / longest;
-    } else if (upscaleFactor > 1) {
-        // Upscale only when within max dimension
-        scale = Math.min(upscaleFactor, maxDimension / longest);
-    }
-
-    if (scale === 1 && contrast === 1 && sharpen === 0) {
-        return base64; // No resize or enhancement needed
+    if (image.width <= maxDimension && image.height <= maxDimension) {
+        return base64; // No resize needed
     }
 
     // Calculate new size
-    const width = Math.max(1, Math.round(image.width * scale));
-    const height = Math.max(1, Math.round(image.height * scale));
-
-    if (scale !== 1) {
-        console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height}`);
+    let width = image.width;
+    let height = image.height;
+    if (width > height) {
+        if (width > maxDimension) {
+            height = Math.round(height * (maxDimension / width));
+            width = maxDimension;
+        }
+    } else {
+        if (height > maxDimension) {
+            width = Math.round(width * (maxDimension / height));
+            height = maxDimension;
+        }
     }
+
+    console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height}`);
 
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     ctx.drawImage(image, 0, 0, width, height);
 
-    if (contrast !== 1) {
-        // Simple contrast enhancement for better Hangul 받침 visibility
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const data = imageData.data;
-        for (let i = 0; i < data.length; i += 4) {
-            data[i] = Math.min(255, Math.max(0, Math.round((data[i] - 128) * contrast + 128)));
-            data[i + 1] = Math.min(255, Math.max(0, Math.round((data[i + 1] - 128) * contrast + 128)));
-            data[i + 2] = Math.min(255, Math.max(0, Math.round((data[i + 2] - 128) * contrast + 128)));
-        }
-        ctx.putImageData(imageData, 0, 0);
-    }
-
-    if (sharpen > 0) {
-        // Unsharp mask (simple) to emphasize thin strokes
-        const src = ctx.getImageData(0, 0, width, height);
-        const dst = ctx.createImageData(width, height);
-        const s = src.data;
-        const d = dst.data;
-        const w = width;
-        const h = height;
-        for (let y = 1; y < h - 1; y++) {
-            for (let x = 1; x < w - 1; x++) {
-                const idx = (y * w + x) * 4;
-                for (let c = 0; c < 3; c++) {
-                    const center = s[idx + c];
-                    const top = s[idx + c - w * 4];
-                    const bottom = s[idx + c + w * 4];
-                    const left = s[idx + c - 4];
-                    const right = s[idx + c + 4];
-                    const lap = (top + bottom + left + right - 4 * center);
-                    const val = Math.min(255, Math.max(0, Math.round(center - sharpen * lap)));
-                    d[idx + c] = val;
-                }
-                d[idx + 3] = s[idx + 3];
-            }
-        }
-        ctx.putImageData(dst, 0, 0);
-    }
-
     return canvas.toBuffer('image/jpeg', 85).toString('base64');
 }
 
 /**
- * PDF 파일을 이미지(Base64) 배열로 변환 - 프로세스 격리 모드 (Child Process)
- * - 메모리 및 안정성 확보를 위해 독립 프로세스에서 실행
+ * PDF ?뚯씪???대?吏(Base64) 諛곗뿴濡?蹂??- ?꾨줈?몄뒪 寃⑸━ 紐⑤뱶 (Child Process)
+ * - 硫깅벑??諛??덉젙???뺣낫瑜??꾪빐 ?낅┰ ?꾨줈?몄뒪?먯꽌 ?ㅽ뻾
  */
 export async function convertPdfToImages(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
     console.log(`[Converter] Converting PDF via Isolated Process: ${filePath}`);
 
     return new Promise((resolve, reject) => {
-        // ESM 환경에서 __dirname 대체
-        const __filename = fileURLToPath(import.meta.url);
+        // ESM ?섍꼍?먯꽌 __dirname ?泥?        const __filename = fileURLToPath(import.meta.url);
         const __dirname = dirname(__filename);
 
-        // 현재 파일(converter.ts)의 위치: src/lib/server/services/
-        // scripts 폴더 위치: src/lib/server/scripts/
-        // 따라서 ../scripts/pdf-to-images.cjs로 접근
+        // ?꾩옱 ?뚯씪(converter.ts)???꾩튂: src/lib/server/services/
+        // scripts ?대뜑 ?꾩튂: src/lib/server/scripts/
+        // ?곕씪??../scripts/pdf-to-images.cjs濡??묎렐
         const scriptPath = join(__dirname, '..', 'scripts', 'pdf-to-images.cjs');
 
         console.log(`[Converter] Script path: ${scriptPath}`);
@@ -166,8 +111,7 @@ export async function convertPdfToImages(filePath: string): Promise<{ base64: st
 }
 
 /**
- * TIFF 파일을 이미지(Base64)로 변환
- */
+ * TIFF ?뚯씪???대?吏(Base64)濡?蹂?? */
 export async function convertTiffToImages(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
     console.log(`[Converter] Converting TIFF: ${filePath}`);
     const data = await readFile(filePath);
@@ -199,7 +143,7 @@ export async function convertTiffToImages(filePath: string): Promise<{ base64: s
 }
 
 /**
- * 파일 확장자에 따라 적절한 분석용 이미지 추출 (멀티파트 가능성 고려)
+ * ?뚯씪 ?뺤옣?먯뿉 ?곕씪 ?곸젅??遺꾩꽍???대?吏 異붿텧 (硫?고뙆??媛?μ꽦 怨좊젮)
  */
 // Helper to download URL to tmp file
 async function downloadUrlToTmp(url: string, ext: string): Promise<string> {
@@ -216,15 +160,15 @@ async function downloadUrlToTmp(url: string, ext: string): Promise<string> {
 }
 
 /**
- * 파일 확장자에 따라 적절한 분석용 이미지 추출 (멀티파트 가능성 고려)
- * URL이 입력된 경우 (Vercel 환경), 임시 파일로 다운로드 후 처리
+ * ?뚯씪 ?뺤옣?먯뿉 ?곕씪 ?곸젅??遺꾩꽍???대?吏 異붿텧 (硫?고뙆??媛?μ꽦 怨좊젮)
+ * URL???낅젰??寃쎌슦 (Vercel ?섍꼍), ?꾩떆 ?뚯씪濡??ㅼ슫濡쒕뱶 ??泥섎━
  */
 export async function prepareImagesForAnalysis(filePathOrUrl: string): Promise<{ base64: string; mimeType: string }[]> {
     let targetPath = filePathOrUrl;
     let isTemp = false;
 
     try {
-        // URL 감지 및 다운로드
+        // URL 媛먯? 諛??ㅼ슫濡쒕뱶
         if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
             console.log(`[Converter] Downloading remote file: ${filePathOrUrl}`);
             const ext = filePathOrUrl.split('?')[0].split('.').pop() || 'tmp';
@@ -240,7 +184,7 @@ export async function prepareImagesForAnalysis(filePathOrUrl: string): Promise<{
         } else if (ext === 'tif' || ext === 'tiff') {
             result = await convertTiffToImages(targetPath);
         } else {
-            // 일반 이미지
+            // ?쇰컲 ?대?吏
             const buffer = await readFile(targetPath);
             let base64 = buffer.toString('base64');
             const mimeTypes: Record<string, string> = {
@@ -259,7 +203,7 @@ export async function prepareImagesForAnalysis(filePathOrUrl: string): Promise<{
         return result;
 
     } finally {
-        // 임시 파일 정리
+        // ?꾩떆 ?뚯씪 ?뺣━
         if (isTemp) {
             try {
                 await import('fs/promises').then(fs => fs.unlink(targetPath));

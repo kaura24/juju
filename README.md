@@ -16,8 +16,6 @@ Vercel 서버의 메모리/타임아웃 이슈를 원천 차단하기 위해 PDF
 1.  **Consolidated Analysis**: 여러 장의 이미지나 다중 페이지 PDF를 하나의 분석 세션으로 묶어 통합 통계(지분 합계 등)를 산출합니다.
 2.  **Sequential Processing**: 대량의 페이지도 오케스트레이터가 순차적으로 처리하여 누락 없는 데이터를 추출합니다.
 
-<<<<<<< Updated upstream
-
 ### 💾 Supabase Storage Architecture
 기존 `/tmp` 디렉토리를 사용하는 임시 방편을 넘어, 엔터프라이즈급 안정을 위한 **클라우드 스토리지 파이프라인**을 구축했습니다.
 
@@ -35,13 +33,12 @@ SUPABASE_URL="https://your-project.supabase.co"
 SUPABASE_SERVICE_KEY="your-service-role-key"  # RLS 제약 없이 작동 (서버 전용)
 SUPABASE_ANON_KEY="your-anon-key"              # Fallback (권장하지 않음)
 ```
-=======
+
 ### ⚡ UI/UX Performance & Reliability
 결과 확인 속도를 극대화하고 상태 동기화의 정밀도를 높였습니다.
 1.  **Instant Result Rendering**: 분석 결과를 가로막던 모든 CSS 애니메이션을 제거하여 완료 즉시 데이터를 확인할 수 있습니다.
 2.  **State Lock Mechanism**: 분석 완료 후 폴링(Polling) 오류로 인해 화면이 다시 로딩 상태로 돌아가는 현상을 방지하는 상태 고정 로직을 도입했습니다.
 3.  **Fail-safe SSE**: Sever-Sent Events 연결이 끊겨도 백업 폴링이 즉각 개입하여 분석 진행도를 실시간으로 추적합니다.
->>>>>>> Stashed changes
 
 #### Vercel 프로덕션 환경 설정
 **중요:** Vercel 대시보드에서 반드시 다음 환경 변수를 설정해야 합니다.

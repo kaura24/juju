@@ -195,12 +195,8 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     // Ensure initialization on first run
     console.log(`[Orchestrator] Initializing orchestrator for run ${runId}...`);
     await initializeOrchestrator();
-<<<<<<< Updated upstream
-    console.log(`[Orchestrator] Updating run status to 'running' for ${runId}...`);
-=======
-    await initializeOrchestrator();
     logExecutionCheckpoint(runId, 'executeRun', `Starting run (mode=${mode})`);
->>>>>>> Stashed changes
+    console.log(`[Orchestrator] Updating run status to 'running' for ${runId}...`);
     await updateRunStatus(runId, 'running');
 
     console.log(`[Orchestrator-DEBUG] executeRun called with runId=${runId}, mode="${mode}"`);
@@ -385,18 +381,34 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
 
       // Step 3: Re-validate final result
       // ... (Proceed with original logic using normalizedDoc) ...
-      const validationReport = validateNormalized(normalizedDoc!);
+      const finalValidationReport = validateNormalized(normalizedDoc!);
 
-      console.log(`[Orchestrator] Run ${runId}: Final Validation Status = ${validationReport.status}`);
+      console.log(`[Orchestrator] Run ${runId}: Final Validation Status = ${finalValidationReport.status}`);
 
-      if (validationReport.status === 'NEED_HITL') {
-        const triggers = validationReport.triggers.filter(t => t.severity === 'BLOCKER');
+      if (finalValidationReport.status === 'NEED_HITL') {
+        const triggers = finalValidationReport.triggers.filter(t => t.severity === 'BLOCKER');
         const reason = triggers[0]?.message || '정합성 오류 발견';
         await addAgentLog(runId, 'FastExtractor', 'WARNING', '정합성 검증 실패', reason);
 
         const hitlPacket = await createHITLPacket(runId, 'FastExtractor', {
           normalized: normalizedDoc!,
-          triggers: validationReport.triggers
+          triggers: finalValidationReport.triggers
+        }, {
+          company_name: normalizedDoc!.document_properties.company_name,
+          document_date: fastResult.document_info?.document_date || null,
+          shareholder_names: normalizedDoc!.shareholders.map(s => s.name || 'UNKNOWN')
+        });
+        await updateRunStatus(runId, 'hitl', 'FastExtractor');
+        emitHITLRequired(runId, hitlPacket);
+        return;
+      }
+      
+      // FAST 모드는 어떤 트리거라도 존재하면 HITL로 분류 (엄격 모드)
+      if (finalValidationReport.triggers.length > 0) {
+        await addAgentLog(runId, 'FastExtractor', 'WARNING', '정합성 검증 경고', '검증 트리거가 존재하여 HITL로 분류합니다');
+        const hitlPacket = await createHITLPacket(runId, 'FastExtractor', {
+          normalized: normalizedDoc!,
+          triggers: finalValidationReport.triggers
         }, {
           company_name: normalizedDoc!.document_properties.company_name,
           document_date: fastResult.document_info?.document_date || null,
@@ -499,13 +511,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         synthesis_reasoning: fastResult.rejection_reason || '분석 완료',
         synthesis_confidence: 0.8,
         validation_summary: {
-          status: 'PASS',
-          triggers: [],
-          summary_metrics: {
-            total_records: fastResult.shareholders?.length || 0,
-            valid_records: fastResult.shareholders?.length || 0,
-            invalid_records: 0
-          } as any,
+          ...finalValidationReport,
           decidability: {
             is_decidable: true,
             reason: 'Fast track analysis completed'
@@ -676,6 +682,57 @@ function extractionCount(output: any): number {
 
 // Deprecated functions (kept for import safety if needed, but unused in main flow)
 function getNextSteps() { return [] }
+
+/**
+ * Step-by-Step 모드: 다음 단계 실행
+ */
+export async function executeNextStep(runId: string): Promise<{ status: string; stage?: string; message?: string }> {
+  const run = await getRun(runId);
+  if (!run) {
+    return { status: 'error', message: 'Run not found' };
+  }
+
+  if (run.status === 'completed') {
+    return { status: 'completed', message: 'Run already completed' };
+  }
+
+  if (run.status === 'error' || run.status === 'rejected') {
+    return { status: run.status, message: 'Run is in terminal state' };
+  }
+
+  if (run.status === 'hitl') {
+    return { status: 'hitl', message: 'Run is waiting for human intervention' };
+  }
+
+  // Determine next stage based on current stage
+  const stageOrder = ['B', 'C', 'D', 'E', 'INSIGHTS'];
+  const currentStageIndex = run.current_stage ? stageOrder.indexOf(run.current_stage) : -1;
+  const nextStageIndex = currentStageIndex + 1;
+
+  if (nextStageIndex >= stageOrder.length) {
+    return { status: 'completed', message: 'All stages completed' };
+  }
+
+  // For step-by-step, we just start the full run which handles internally
+  // In a more sophisticated implementation, we would run individual stages
+  try {
+    // Start full execution (it will pick up from where it left off based on artifacts)
+    executeRun(runId, run.execution_mode || 'MULTI_AGENT').catch(err => {
+      console.error(`[executeNextStep] Error executing run ${runId}:`, err);
+    });
+
+    return { 
+      status: 'running', 
+      stage: stageOrder[nextStageIndex],
+      message: `Starting stage ${stageOrder[nextStageIndex]}`
+    };
+  } catch (error) {
+    return { 
+      status: 'error', 
+      message: error instanceof Error ? error.message : 'Unknown error' 
+    };
+  }
+}
 
 // ============================================
 // Stage B: Gatekeeper

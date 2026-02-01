@@ -40,6 +40,13 @@
         })(),
     );
 
+    let hasBlocker = $derived(
+        (() => {
+            const triggers = finalAnswer?.validation_summary?.triggers || [];
+            return triggers.some((t) => t.severity === "BLOCKER");
+        })(),
+    );
+
     function formatEntityType(entity_type: string): string {
         switch (entity_type) {
             case "INDIVIDUAL":
@@ -117,6 +124,11 @@
                             <span class="icon">👀</span> 사람 확인 필요
                         </div>
                     {/if}
+                {/if}
+                {#if hasBlocker}
+                    <div class="result-badge review">
+                        <span class="icon">👀</span> 인간 검토 필요
+                    </div>
                 {/if}
             </div>
         </div>

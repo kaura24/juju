@@ -12,6 +12,8 @@ export interface EnvConfig {
 	// OpenAI 설정
 	OPENAI_API_KEY: string;
 	OPENAI_MODEL: string;
+	OPENAI_FAST_MODEL?: string;
+	OPENAI_EXTRACTOR_MODEL?: string;
 	OPENAI_ORGANIZATION_ID?: string;
 	OPENAI_PROJECT_ID?: string;
 
@@ -85,6 +87,8 @@ ${missingVars.map(v => `  • ${v}`).join('\n')}
 		OPENAI_API_KEY: env.OPENAI_API_KEY || '',
 		// 기본 모델은 agents.ts에서 관리하므로 여기서는 빈 값을 허용
 		OPENAI_MODEL: env.OPENAI_MODEL || '',
+		OPENAI_FAST_MODEL: env.OPENAI_FAST_MODEL || '',
+		OPENAI_EXTRACTOR_MODEL: env.OPENAI_EXTRACTOR_MODEL || '',
 		OPENAI_ORGANIZATION_ID: env.OPENAI_ORGANIZATION_ID,
 		OPENAI_PROJECT_ID: env.OPENAI_PROJECT_ID,
 
