@@ -61,7 +61,12 @@ export async function convertPdfToImages(filePath: string): Promise<{ base64: st
     console.log(`[Converter] Converting PDF via Isolated Process: ${filePath}`);
 
     return new Promise((resolve, reject) => {
-        const scriptPath = join(process.cwd(), 'scripts', 'pdf-to-images.cjs');
+        // Vercel 환경에서는 src/lib/server/scripts 경로 사용 (빌드에 포함됨)
+        // 로컬 환경에서는 루트의 scripts 폴더 사용
+        const IS_VERCEL = process.env.VERCEL === '1';
+        const scriptPath = IS_VERCEL
+            ? join(process.cwd(), '.vercel', 'output', 'functions', '__render.func', 'src', 'lib', 'server', 'scripts', 'pdf-to-images.cjs')
+            : join(process.cwd(), 'scripts', 'pdf-to-images.cjs');
         // Spawn doesn't have maxBuffer, it's a stream.
         const child = spawn('node', [scriptPath, filePath], {
             env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' }

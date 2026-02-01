@@ -1,7 +1,1 @@
-{
-  "functions": {
-    ".vercel/output/functions/**": {
-      "includeFiles": "scripts/**"
-    }
-  }
-}
+{}
