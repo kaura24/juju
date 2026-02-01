@@ -71,8 +71,9 @@ export const POST: RequestHandler = async ({ request, platform }) => {
       console.log(`[API] Using platform.waitUntil for run ${run.id}`);
       (platform as any).waitUntil(executionPromise);
     } else {
-      console.warn(`[API] platform.waitUntil not available, execution may be terminated early for run ${run.id}`);
-      // Fire and forget - execution will be resumed by detail page if needed
+      console.warn(`[API] platform.waitUntil not available, executing synchronously for run ${run.id}`);
+      // Fallback: run synchronously so Vercel doesn't drop the background task
+      await executionPromise;
     }
 
     return json({

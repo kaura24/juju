@@ -52,7 +52,8 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
       console.log(`[API-EXECUTE] Using platform.waitUntil for run ${runId}`);
       (platform as any).waitUntil(executionPromise);
     } else {
-      console.warn(`[API-EXECUTE] platform.waitUntil not available for run ${runId}, execution may be terminated early`);
+      console.warn(`[API-EXECUTE] platform.waitUntil not available for run ${runId}, executing synchronously`);
+      await executionPromise;
     }
 
     return json({
