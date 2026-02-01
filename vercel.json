@@ -1,1 +1,7 @@
-{}
+{
+  "functions": {
+    "**/*.func/**": {
+      "includeFiles": "scripts/**"
+    }
+  }
+}
