@@ -22,11 +22,28 @@
 
 ### 🛠️ Config Updates (.env)
 시스템 구동을 위해 다음 환경변수가 필수적으로 요구됩니다.
+
+#### 로컬 개발 환경 (.env)
 ```bash
+OPENAI_API_KEY="your-openai-api-key"
 SUPABASE_URL="https://your-project.supabase.co"
-SUPABASE_SERVICE_KEY="your-service-role-key" # (Caution: Server-side only)
-SUPABASE_BUCKET_NAME="uploads"
+SUPABASE_SERVICE_KEY="your-service-role-key"  # RLS 제약 없이 작동 (서버 전용)
+SUPABASE_ANON_KEY="your-anon-key"              # Fallback (권장하지 않음)
 ```
+
+#### Vercel 프로덕션 환경 설정
+**중요:** Vercel 대시보드에서 반드시 다음 환경 변수를 설정해야 합니다.
+
+1. Vercel 프로젝트 → Settings → Environment Variables
+2. 다음 변수들을 추가:
+   - `OPENAI_API_KEY`: OpenAI API 키
+   - `SUPABASE_URL`: Supabase 프로젝트 URL
+   - `SUPABASE_SERVICE_KEY`: Supabase Service Role Key (Settings → API → service_role key)
+   - ⚠️ **절대로** `SUPABASE_ANON_KEY`만 사용하지 마세요. RLS 권한 에러가 발생합니다.
+
+3. Supabase 대시보드 설정:
+   - Storage → Buckets → `juju-data` 버킷 생성
+   - SQL Editor에서 `supabase_setup.sql` 실행 (RLS 정책 설정)
 
 ---
 

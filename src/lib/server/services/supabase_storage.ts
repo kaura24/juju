@@ -3,11 +3,16 @@ import { createClient } from '@supabase/supabase-js';
 import { env } from '$env/dynamic/private';
 
 // Supabase 클라이언트 초기화
+// Vercel 서버리스 환경에서는 RLS 제약 없이 작동하는 SERVICE_KEY 사용
 const supabaseUrl = env.SUPABASE_URL || '';
-const supabaseKey = env.SUPABASE_ANON_KEY || '';
+const supabaseKey = env.SUPABASE_SERVICE_KEY || env.SUPABASE_ANON_KEY || '';
 
 if (!supabaseUrl || !supabaseKey) {
-    console.warn('[SupabaseStorage] SUPABASE_URL or SUPABASE_ANON_KEY is missing in .env');
+    console.warn('[SupabaseStorage] SUPABASE_URL or SUPABASE_SERVICE_KEY is missing in .env');
+}
+
+if (!env.SUPABASE_SERVICE_KEY) {
+    console.warn('[SupabaseStorage] WARNING: Using ANON_KEY instead of SERVICE_KEY. This may cause RLS permission errors in production.');
 }
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
