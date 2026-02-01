@@ -145,6 +145,8 @@
         if (res.ok) {
           const r = await res.json();
           finalAnswer = r.result;
+        } else {
+          dlog("error", "Result not available yet", { status: res.status });
         }
       }
 
@@ -154,6 +156,16 @@
         fetch(`/api/runs/${runId}/execute`, { method: "POST" }).catch((err) =>
           dlog("error", "Failed to trigger execution", err),
         );
+      }
+
+      // If completed but result missing, retry once to load result
+      if (data.run.status === "completed" && !finalAnswer) {
+        dlog("poll", "Run completed but result missing, retrying result fetch");
+        const retry = await fetch(`/api/runs/${runId}/result`);
+        if (retry.ok) {
+          const rr = await retry.json();
+          finalAnswer = rr.result;
+        }
       }
     } catch (e) {
       status = "error";
