@@ -10,7 +10,8 @@ import { readFile } from 'fs/promises';
 import { createCanvas, Image, loadImage } from '@napi-rs/canvas';
 import * as UTIF from 'utif';
 import { spawn } from 'child_process';
-import { join } from 'path';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 
 // Fix for pdfjs-dist in Node.js - set global Image
 if (typeof global !== 'undefined') {
@@ -61,12 +62,16 @@ export async function convertPdfToImages(filePath: string): Promise<{ base64: st
     console.log(`[Converter] Converting PDF via Isolated Process: ${filePath}`);
 
     return new Promise((resolve, reject) => {
-        // Vercel 환경에서는 src/lib/server/scripts 경로 사용 (빌드에 포함됨)
-        // 로컬 환경에서는 루트의 scripts 폴더 사용
-        const IS_VERCEL = process.env.VERCEL === '1';
-        const scriptPath = IS_VERCEL
-            ? join(process.cwd(), '.vercel', 'output', 'functions', '__render.func', 'src', 'lib', 'server', 'scripts', 'pdf-to-images.cjs')
-            : join(process.cwd(), 'scripts', 'pdf-to-images.cjs');
+        // ESM 환경에서 __dirname 대체
+        const __filename = fileURLToPath(import.meta.url);
+        const __dirname = dirname(__filename);
+
+        // 현재 파일(converter.ts)의 위치: src/lib/server/services/
+        // scripts 폴더 위치: src/lib/server/scripts/
+        // 따라서 ../scripts/pdf-to-images.cjs로 접근
+        const scriptPath = join(__dirname, '..', 'scripts', 'pdf-to-images.cjs');
+
+        console.log(`[Converter] Script path: ${scriptPath}`);
         // Spawn doesn't have maxBuffer, it's a stream.
         const child = spawn('node', [scriptPath, filePath], {
             env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' }
