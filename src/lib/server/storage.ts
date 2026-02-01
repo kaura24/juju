@@ -447,7 +447,14 @@ export async function listPendingHITLPackets(): Promise<HITLPacket[]> {
  */
 export async function saveFile(file: File): Promise<string> {
   const buffer = Buffer.from(await file.arrayBuffer());
-  const filename = `${uuidv4()}_${file.name}`;
+
+  // 파일명을 URL-safe하게 정규화 (한글, 특수문자 제거)
+  const sanitizedName = file.name
+    .replace(/[^\w\s.-]/g, '') // 알파벳, 숫자, ., -, _ 만 허용
+    .replace(/\s+/g, '_')       // 공백을 언더스코어로 변경
+    .replace(/:/g, '-');        // 콜론을 대시로 변경
+
+  const filename = `${uuidv4()}_${sanitizedName}`;
 
   if (IS_VERCEL) {
     try {
@@ -474,7 +481,9 @@ export async function saveFile(file: File): Promise<string> {
  */
 export async function saveBase64Image(base64Data: string, mimeType: string): Promise<string> {
   const extension = mimeType.split('/')[1] || 'png';
-  const filename = `${uuidv4()}.${extension}`;
+  // 확장자도 정규화 (예: jpeg+xml -> jpeg)
+  const sanitizedExt = extension.replace(/[^\w]/g, '').toLowerCase();
+  const filename = `${uuidv4()}.${sanitizedExt}`;
 
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
