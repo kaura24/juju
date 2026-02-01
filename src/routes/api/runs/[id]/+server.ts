@@ -4,7 +4,7 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getRun, getStageEvents, getHITLPacketByRunId } from '$lib/server/storage';
+import { getRun, getStageEvents, getHITLPacketByRunId, getArtifact, updateRunStatus } from '$lib/server/storage';
 import { MODEL, FAST_MODEL } from '$lib/server/agents';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -18,6 +18,16 @@ export const GET: RequestHandler = async ({ params }) => {
 
     const events = await getStageEvents(runId);
     const hitlPacket = await getHITLPacketByRunId(runId);
+
+    // Self-heal: if results exist but status is still running/pending, finalize
+    if (run.status === 'running' || run.status === 'pending') {
+      const fastAnswer = await getArtifact(runId, 'FAST', 'answer_set');
+      const insightsAnswer = await getArtifact(runId, 'INSIGHTS', 'answer_set');
+      if (fastAnswer || insightsAnswer) {
+        await updateRunStatus(runId, 'completed', run.current_stage);
+        run.status = 'completed';
+      }
+    }
 
     const resolvedModel = run.execution_mode === 'FAST' ? FAST_MODEL : MODEL;
 
