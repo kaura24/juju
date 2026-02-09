@@ -2,7 +2,6 @@
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, Image } = require('@napi-rs/canvas');
-const { pathToFileURL } = require('url');
 
 console.log('1. Modules loaded');
 global.Image = Image;

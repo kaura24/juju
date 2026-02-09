@@ -73,14 +73,6 @@ export interface OrchestratorSummary {
 // 로그 저장소 (In-Memory)
 // ============================================
 import { saveRunLog, loadRunLog } from './storage';
-import { appendFile } from 'fs/promises';
-import { join } from 'path';
-
-import os from 'os';
-// detect if running on Vercel or explicitly enabled via env
-const USE_SUPABASE = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.USE_SUPABASE === 'true';
-const BASE_DIR = USE_SUPABASE ? os.tmpdir() : process.cwd();
-const ERROR_LOG_PATH = join(BASE_DIR, 'logs', 'server_error.log');
 
 // In-Memory cache (still useful for speed, but synced to disk)
 const runLogs = new Map<string, RunLogReport>();
@@ -164,15 +156,7 @@ export async function addAgentLog(
   // 비동기 저장
   saveRunLog(report).catch(e => console.error('Log save failed', e));
 
-  // Critical Error Logging (File System)
-  if (level === 'ERROR') {
-    try {
-      const errorMsg = `[${entry.timestamp}] [${runId}] [${agent}] [${action}] ${detail}\n`;
-      await appendFile(ERROR_LOG_PATH, errorMsg, 'utf-8');
-    } catch (err) {
-      console.error('Failed to write to server_error.log', err);
-    }
-  }
+  // No local error log writes (Supabase-only policy)
 }
 
 /**

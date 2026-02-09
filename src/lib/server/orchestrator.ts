@@ -144,12 +144,21 @@ export async function initializeOrchestrator(): Promise<void> {
   if (isInitialized) return;
   console.log('[Orchestrator] Initializing...');
 
-  const { cleanupRunningSessions } = await import('./storage');
-  const cleanedCount = await cleanupRunningSessions();
-  if (cleanedCount > 0) {
-    console.log(`[Orchestrator] Cleaned up ${cleanedCount} stale running sessions on startup.`);
+  try {
+    console.log('[Orchestrator] Importing storage module...');
+    const { cleanupRunningSessions } = await import('./storage');
+    console.log('[Orchestrator] Calling cleanupRunningSessions...');
+    const cleanedCount = await cleanupRunningSessions();
+    console.log('[Orchestrator] cleanupRunningSessions completed:', cleanedCount);
+    if (cleanedCount > 0) {
+      console.log(`[Orchestrator] Cleaned up ${cleanedCount} stale running sessions on startup.`);
+    }
+    logExecutionCheckpoint('SYSTEM', 'initializeOrchestrator', 'Orchestrator Initialized');
+    console.log('[Orchestrator] Initialized successfully');
+  } catch (error) {
+    console.error('[Orchestrator] Initialization error:', error);
+    throw error;
   }
-  logExecutionCheckpoint('SYSTEM', 'initializeOrchestrator', 'Orchestrator Initialized');
 
   // Global error handlers to catch "King" errors before process dies
   if (!process.listenerCount('uncaughtException')) {
@@ -164,7 +173,6 @@ export async function initializeOrchestrator(): Promise<void> {
   }
 
   isInitialized = true;
-  console.log('[Orchestrator] Initialized successfully');
 }
 
 // ============================================
@@ -227,7 +235,6 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     // Supabase Upload (New)
     // ============================================
     await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
-    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
     logExecutionCheckpoint(runId, 'executeRun', `Uploading images to Supabase...`);
     const imageUrls = await uploadImagesToSupabase(runId, images);
     logExecutionCheckpoint(runId, 'executeRun', `Supabase upload done. URLs: ${imageUrls.length}`);
@@ -284,8 +291,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
           await addAgentLog(runId, 'FastExtractor', 'WARNING', `재시도 (${attempt}/${MAX_ATTEMPTS})`, '검증 실패로 인한 AI 재분석 수행');
         }
 
-        console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
-        console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
+    console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
         logExecutionCheckpoint(runId, 'FastExtractor', `Calling runFastExtractor (Attempt ${attempt})`);
         fastResult = await runFastExtractor(runId, images, feedback, imageUrls);
         logExecutionCheckpoint(runId, 'FastExtractor', `runFastExtractor returned. Valid: ${fastResult.is_valid}`);

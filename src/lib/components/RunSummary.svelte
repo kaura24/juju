@@ -47,6 +47,15 @@
         })(),
     );
 
+    let needsReview = $derived(
+        (() => {
+            const decidability = finalAnswer?.validation_summary?.decidability;
+            const undecidable =
+                status === "completed" && decidability && !decidability.is_decidable;
+            return hasBlocker || !!undecidable;
+        })(),
+    );
+
     function formatEntityType(entity_type: string): string {
         switch (entity_type) {
             case "INDIVIDUAL":
@@ -114,18 +123,12 @@
                 {/if}
 
                 <!-- Pass/Fail Badge -->
-                {#if status === "completed" && finalAnswer?.validation_summary?.decidability}
-                    {#if finalAnswer.validation_summary.decidability.is_decidable}
-                        <div class="result-badge pass">
-                            <span class="icon">✨</span> AI 심사 통과
-                        </div>
-                    {:else}
-                        <div class="result-badge review">
-                            <span class="icon">👀</span> 사람 확인 필요
-                        </div>
-                    {/if}
+                {#if status === "completed" && finalAnswer?.validation_summary?.decidability && !needsReview}
+                    <div class="result-badge pass">
+                        <span class="icon">✨</span> AI 심사 통과
+                    </div>
                 {/if}
-                {#if hasBlocker}
+                {#if needsReview}
                     <div class="result-badge review">
                         <span class="icon">👀</span> 인간 검토 필요
                     </div>

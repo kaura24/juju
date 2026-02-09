@@ -1,9 +1,67 @@
-# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v3.0.0 (Vercel Optimized)
+# 주주명부 분석 AI 시스템 (JuJu Shareholder Analyzer) v3.1.0 (Multi-Platform Optimized)
 
 본 시스템은 **한국어 주주명부 이미지/PDF**를 분석하여 정형화된 데이터로 변환하는 엔터프라이즈급 AI 솔루션입니다. **GPT-4o Vision**의 인지 능력과 **TypeScript 기반 Rule Engine**의 계산 능력을 결합한 하이브리드 아키텍처를 채택했습니다.
 
+## 🆕 v3.1.0 Update: Multi-Platform & Performance Optimization
+**다양한 서버리스 플랫폼 지원 및 개발 생산성 향상을 위해 핵심 시스템을 고도화했습니다.**
+
+### 🌐 Multi-Platform Environment Detection
+단일 Vercel 감지를 넘어, 다양한 서버리스 플랫폼을 자동으로 감지하고 최적화합니다.
+
+| 플랫폼 | 감지 신호 | 최적화 프로파일 |
+|--------|----------|----------------|
+| **Vercel** | `VERCEL=1`, `VERCEL_ENV` | 60초 타임아웃, spawn 비활성화 |
+| **Netlify** | `NETLIFY`, `CONTEXT` | 26초 타임아웃 |
+| **Cloudflare** | `CF_PAGES` | 메모리 128MB, FS 없음 |
+| **Railway** | `RAILWAY_ENVIRONMENT` | 풀스펙 (300초, spawn 허용) |
+| **Render** | `RENDER` | 60초, spawn 허용 |
+| **Local** | 자동 감지 | 개발 최적화 모드 |
+
+서버 시작 시 자동으로 시스템 상태가 콘솔에 출력됩니다:
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🔧 JuJu System Status
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  Platform: LOCAL (Development)
+  Signals:  [NODE_ENV=development]
+  
+  Runtime Profile:
+    • Max Memory:    16384 MB
+    • Max Timeout:   600 sec
+    • Spawn Process: ✅ Allowed
+    • Writable FS:   ✅ Yes
+    • Recommended:   gpt-4o-mini
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### ⚡ PDF Processing Optimization (stdin Mode)
+서버리스 환경에서의 PDF 처리 안정성을 위해 **완전 메모리 기반 처리**로 전환했습니다.
+
+1.  **stdin 기반 변환**: PDF 데이터를 Base64로 stdin에 전달하여 **임시 파일 생성 불필요**
+2.  **로그 개선**: 페이지별 변환 진행률 및 소요 시간 출력
+3.  **호환성 유지**: 로컬 개발 시 기존 파일 경로 모드도 지원
+
+```typescript
+// 변환 흐름 (서버리스 최적화)
+pdfBuffer → stdin(Base64) → pdf-to-images.cjs → stdout(JSON) → images[]
+```
+
+### 🚀 Development Mode Auto-Optimization
+개발 환경에서 자동으로 빠른 모델을 사용하여 **비용 절감 및 개발 속도 향상**을 실현합니다.
+
+| 환경 | MODEL | FAST_MODEL | EXTRACTOR_MODEL |
+|------|-------|------------|-----------------|
+| **Development** | gpt-4o-mini (auto) | gpt-4o-mini (auto) | gpt-4o-mini (auto) |
+| **Production** | .env 설정값 | .env 설정값 | .env 설정값 |
+
+- `.env`에 모델을 명시하지 않으면 개발 환경에서 자동으로 `gpt-4o-mini` 사용
+- 프로덕션 배포 시 `.env`에서 원하는 모델 지정 가능
+
+---
+
 ## 🚀 v3.0.0 Major Update: Vercel & PDF Optimization
 **서버리스 환경(Vercel)의 물리적 한계를 극복하고 대규모 문서 분석의 안정성을 확보하기 위해 아키텍처를 전면 고도화했습니다.**
+
 
 ### 📄 Client-side PDF Processing
 Vercel 서버의 메모리/타임아웃 이슈를 원천 차단하기 위해 PDF 처리 방식을 혁신했습니다.
@@ -19,9 +77,34 @@ Vercel 서버의 메모리/타임아웃 이슈를 원천 차단하기 위해 PDF
 ### 💾 Supabase Storage Architecture
 기존 `/tmp` 디렉토리를 사용하는 임시 방편을 넘어, 엔터프라이즈급 안정을 위한 **클라우드 스토리지 파이프라인**을 구축했습니다.
 
+**🎯 완전한 클라우드 스토리지 전환 (Full Cloud Storage)**
+- **이미지 파일**: `juju-images-public` 버킷에 저장
+- **메타데이터 (Run/Event/Artifact/HITL)**: `juju-data` 버킷에 JSON 파일로 저장
+- **로컬 파일 시스템 미사용**: Google Drive 동기화 충돌, 권한 문제 완전 해결
+- **환경 변수**: `USE_SUPABASE=true` 설정 시 모든 데이터가 Supabase로 저장됨
+
+#### 저장 구조
+```
+juju-images-public/          # 이미지 버킷 (Public)
+  └── {runId}/
+      └── page_1.jpeg
+      └── page_2.jpeg
+
+juju-data/                   # 메타데이터 버킷 (Private)
+  ├── runs/
+  │   └── {runId}.json       # Run 상태 및 설정
+  ├── events/
+  │   └── {eventId}.json     # Stage 이벤트 로그
+  ├── artifacts/
+  │   └── {artifactId}.json  # 분석 결과물
+  └── hitl/
+      └── {hitlId}.json      # Human-in-the-loop 패킷
+```
+
 1.  **Direct Upload via Service Role**: 서버 사이드에서 `SERVICE_KEY`를 사용하여 RLS(Row Level Security) 제약 없이 안정적으로 파일을 업로드합니다.
 2.  **Public URL Generation**: 업로드된 이미지는 고유한 Public URL로 변환되어 GPT-4o Vision에게 전달됩니다. 이는 로컬 파일 경로를 사용할 때보다 훨씬 빠르고 안정적인 이미지 처리를 보장합니다.
-3.  **Automatic Lifecycle Management**: 분석이 완료된 파일이나 실패한 파일은 정책에 따라 효율적으로 관리됩니다 (추후 확장 예정).
+3.  **JSON Metadata Storage**: Run 상태, 이벤트 로그, 분석 결과 등 모든 메타데이터가 JSON 형식으로 `juju-data` 버킷에 저장되어 파일 시스템 의존성을 완전히 제거했습니다.
+4.  **Automatic Lifecycle Management**: 분석이 완료된 파일이나 실패한 파일은 정책에 따라 효율적으로 관리됩니다 (추후 확장 예정).
 
 ### 🛠️ Config Updates (.env)
 시스템 구동을 위해 다음 환경변수가 필수적으로 요구됩니다.
@@ -29,10 +112,17 @@ Vercel 서버의 메모리/타임아웃 이슈를 원천 차단하기 위해 PDF
 #### 로컬 개발 환경 (.env)
 ```bash
 OPENAI_API_KEY="your-openai-api-key"
+
+# Supabase Storage Configuration
+USE_SUPABASE=true                              # 메타데이터도 Supabase에 저장 (Google Drive 충돌 방지)
 SUPABASE_URL="https://your-project.supabase.co"
 SUPABASE_SERVICE_KEY="your-service-role-key"  # RLS 제약 없이 작동 (서버 전용)
 SUPABASE_ANON_KEY="your-anon-key"              # Fallback (권장하지 않음)
 ```
+
+**필수 Supabase 버킷 설정:**
+- `juju-images-public`: 이미지 파일 저장용 (Public 버킷)
+- `juju-data`: 메타데이터 JSON 저장용 (Private 버킷)
 
 ### ⚡ UI/UX Performance & Reliability
 결과 확인 속도를 극대화하고 상태 동기화의 정밀도를 높였습니다.
@@ -49,9 +139,12 @@ SUPABASE_ANON_KEY="your-anon-key"              # Fallback (권장하지 않음)
    - `SUPABASE_URL`: Supabase 프로젝트 URL
    - `SUPABASE_SERVICE_KEY`: Supabase Service Role Key (Settings → API → service_role key)
    - ⚠️ **절대로** `SUPABASE_ANON_KEY`만 사용하지 마세요. RLS 권한 에러가 발생합니다.
+   - ℹ️ Vercel 환경에서는 `USE_SUPABASE`가 자동으로 활성화됩니다.
 
 3. Supabase 대시보드 설정:
-   - Storage → Buckets → `juju-data` 버킷 생성
+   - Storage → Buckets → **2개의 버킷 생성 필수**
+     - `juju-images-public`: 이미지 파일용 (Public 설정)
+     - `juju-data`: 메타데이터 JSON용 (Private 설정)
    - SQL Editor에서 `supabase_setup.sql` 실행 (RLS 정책 설정)
 
 ---

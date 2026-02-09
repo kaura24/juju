@@ -31,143 +31,70 @@ import { extractHITLReasonCodes, determineRequiredAction } from '$lib/validator/
 // 인메모리 저장소 & 파일DB 경로 설정
 // ============================================
 
-import { writeFile, mkdir, readFile, readdir, unlink, rename } from 'fs/promises';
-import { join, dirname } from 'path';
-import os from 'os';
+import { config } from 'dotenv';
+
+// 환경 변수 명시적 로드 (개발 환경)
+config();
 
 // detect if running on Vercel or explicitly enabled via env
-const USE_SUPABASE = process.env.VERCEL === '1' || process.env.USE_SUPABASE === 'true';
-const BASE_DIR = USE_SUPABASE ? os.tmpdir() : process.cwd();
+const USE_SUPABASE = process.env.VERCEL === '1' || 
+                      process.env.VERCEL === 'true' || 
+                      process.env.USE_SUPABASE === 'true' ||
+                      process.env.USE_SUPABASE === '1';
 
-const DATA_DIR = join(BASE_DIR, 'data');
-const UPLOAD_DIR = join(BASE_DIR, 'uploads');
-const LOG_DIR = join(BASE_DIR, 'logs');
+console.log('[Storage] USE_SUPABASE:', USE_SUPABASE, '(env:', process.env.USE_SUPABASE, ')');
 
-// 디렉토리 구조
+// 로컬 파일 시스템 미사용: 모든 메타데이터/로그는 Supabase에 저장
 const DIRS = {
-  runs: join(DATA_DIR, 'runs'),
-  events: join(DATA_DIR, 'events'),
-  artifacts: join(DATA_DIR, 'artifacts'),
-  hitl: join(DATA_DIR, 'hitl')
+  runs: 'runs',
+  events: 'events',
+  artifacts: 'artifacts',
+  hitl: 'hitl'
 };
-
-// 초기화 플래그
-let isDirsInitialized = false;
-
-async function ensureDirs() {
-  if (isDirsInitialized) return;
-  await mkdir(UPLOAD_DIR, { recursive: true });
-  await mkdir(LOG_DIR, { recursive: true });
-  for (const dir of Object.values(DIRS)) {
-    await mkdir(dir, { recursive: true });
-  }
-  isDirsInitialized = true;
-}
+const LOG_DIR = 'logs';
 
 // 헬퍼: 파일 기반 저장/로드 (Hybrid: Local FS or Supabase)
 async function _save<T>(dir: string, key: string, data: T): Promise<void> {
-  // Determine Folder Name from dir path
-  // dir is like ".../data/runs" or ".../data/events"
-  // We want "runs", "events", etc.
-  const folder = dir.split(/[\\/]/).pop() || 'misc';
-
-  if (USE_SUPABASE) {
-    try {
-      const { uploadJson } = await import('./services/supabase_storage');
-      await uploadJson(`${folder}/${key}.json`, data);
-      return;
-    } catch (e) {
-      console.error(`[Storage] Supabase Save Failed (${folder}/${key}):`, e);
-      // Fallback to temp fs? No, Vercel tmp is unreliable.
-      throw e;
-    }
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Local file writes are disabled.');
   }
 
-  // Local FS Logic
-  await ensureDirs();
-  const filePath = join(dir, `${key}.json`);
-  const tempPath = `${filePath}.${uuidv4()}.tmp`;
-
   try {
-    await writeFile(tempPath, JSON.stringify(data, null, 2));
-    let retryCount = 0;
-    const MAX_RETRIES = 5;
-    while (retryCount < MAX_RETRIES) {
-      try {
-        await rename(tempPath, filePath);
-        return;
-      } catch (err: any) {
-        if (err.code === 'EPERM' || err.code === 'EBUSY') {
-          retryCount++;
-          if (retryCount >= MAX_RETRIES) throw err;
-          await new Promise(resolve => setTimeout(resolve, 100));
-          continue;
-        }
-        throw err;
-      }
-    }
-  } catch (error) {
-    try { await unlink(tempPath); } catch { }
-    throw error;
+    const { uploadJson } = await import('./services/supabase_storage');
+    await uploadJson(`${dir}/${key}.json`, data);
+  } catch (e) {
+    console.error(`[Storage] Supabase Save Failed (${dir}/${key}):`, e);
+    throw e;
   }
 }
 
 async function _load<T>(dir: string, key: string): Promise<T | null> {
-  const folder = dir.split(/[\\/]/).pop() || 'misc';
-
-  if (USE_SUPABASE) {
-    try {
-      const { downloadJson } = await import('./services/supabase_storage');
-      return await downloadJson<T>(`${folder}/${key}.json`);
-    } catch (e) {
-      console.warn(`[Storage] Supabase Load Failed (${folder}/${key}):`, e);
-      return null;
-    }
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Local file reads are disabled.');
   }
 
-  // Local FS Logic
-  await ensureDirs();
-  const filePath = join(dir, `${key}.json`);
   try {
-    const data = await readFile(filePath, 'utf-8');
-    return JSON.parse(data) as T;
-  } catch {
+    const { downloadJson } = await import('./services/supabase_storage');
+    return await downloadJson<T>(`${dir}/${key}.json`);
+  } catch (e) {
+    console.warn(`[Storage] Supabase Load Failed (${dir}/${key}):`, e);
     return null;
   }
 }
 
 async function _list<T>(dir: string): Promise<T[]> {
-  const folder = dir.split(/[\\/]/).pop() || 'misc';
-
-  if (USE_SUPABASE) {
-    try {
-      const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
-      const files = await listJsonFiles(folder);
-      const results: T[] = [];
-      // Parallel fetch for list items might be heavy, but listRuns is usually small page size
-      // Optimizing: fetch all in parallel
-      const tasks = files.map(f => downloadJson<T>(`${folder}/${f}`));
-      const loaded = await Promise.all(tasks);
-      return loaded.filter((item) => item !== null) as T[];
-    } catch (e) {
-      console.error(`[Storage] Supabase List Failed (${folder}):`, e);
-      return [];
-    }
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Local file listing is disabled.');
   }
 
-  // Local FS Logic
-  await ensureDirs();
   try {
-    const files = await readdir(dir);
-    const results: T[] = [];
-    for (const file of files) {
-      if (file.endsWith('.json')) {
-        const data = await _load<T>(dir, file.replace('.json', ''));
-        if (data) results.push(data);
-      }
-    }
-    return results;
-  } catch {
+    const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
+    const files = await listJsonFiles(dir);
+    const tasks = files.map(f => downloadJson<T>(`${dir}/${f}`));
+    const loaded = await Promise.all(tasks);
+    return loaded.filter((item) => item !== null) as T[];
+  } catch (e) {
+    console.error(`[Storage] Supabase List Failed (${dir}):`, e);
     return [];
   }
 }
@@ -229,24 +156,14 @@ export async function saveFile(file: File): Promise<string> {
   const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
   const safeFilename = `${uuidv4()}.${ext}`;
 
-  if (USE_SUPABASE) {
-    try {
-      const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
-      const uploadPath = `uploads/${safeFilename}`;
-      await uploadRawFile(buffer, uploadPath, file.type || 'application/octet-stream');
-      return getRawFileUrl(uploadPath);
-    } catch (e) {
-      console.error('[Storage] Supabase Upload Failed, falling back to temp:', e);
-      // Fallback is tricky if we want persistent URL. But better than crash.
-      // Actually throw is better so we know it failed.
-      throw e;
-    }
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Local file writes are disabled.');
   }
 
-  await ensureDirs();
-  const filepath = join(UPLOAD_DIR, safeFilename);
-  await writeFile(filepath, buffer);
-  return filepath;
+  const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
+  const uploadPath = `uploads/${safeFilename}`;
+  await uploadRawFile(buffer, uploadPath, file.type || 'application/octet-stream');
+  return getRawFileUrl(uploadPath);
 }
 
 /**
@@ -261,22 +178,14 @@ export async function saveBase64Image(base64Data: string, mimeType: string): Pro
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
 
-  if (USE_SUPABASE) {
-    try {
-      const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
-      const uploadPath = `uploads/${filename}`;
-      await uploadRawFile(buffer, uploadPath, mimeType);
-      return getRawFileUrl(uploadPath);
-    } catch (e) {
-      console.error('[Storage] Supabase Base64 Upload Failed:', e);
-      throw e;
-    }
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Local file writes are disabled.');
   }
 
-  await ensureDirs();
-  const filepath = join(UPLOAD_DIR, filename);
-  await writeFile(filepath, buffer);
-  return filepath;
+  const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
+  const uploadPath = `uploads/${filename}`;
+  await uploadRawFile(buffer, uploadPath, mimeType);
+  return getRawFileUrl(uploadPath);
 }
 
 // ============================================
@@ -407,16 +316,20 @@ export async function createHITLPacket(
  * 실행 중인 세션 정리 (Startup 시 호출)
  */
 export async function cleanupRunningSessions(): Promise<number> {
+  console.log('[Storage] cleanupRunningSessions: Fetching run list...');
   const runs = await _list<Run>(DIRS.runs);
+  console.log('[Storage] cleanupRunningSessions: Found', runs.length, 'runs');
   let cleaned = 0;
   for (const run of runs) {
     if (run.status === 'running') {
+      console.log('[Storage] cleanupRunningSessions: Cleaning run', run.id);
       run.status = 'error';
       run.error = 'Server restarted';
       await _save(DIRS.runs, run.id, run);
       cleaned++;
     }
   }
+  console.log('[Storage] cleanupRunningSessions: Cleaned', cleaned, 'runs');
   return cleaned;
 }
 
@@ -436,36 +349,24 @@ export async function updateRunStorageProvider(runId: string, provider: 'LOCAL' 
 export async function getStageEvents(runId: string): Promise<StageEvent[]> {
   const events: StageEvent[] = [];
 
-  if (USE_SUPABASE) {
-    // Supabase: List files and filter by name before downloading
-    try {
-      const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
-      const files = await listJsonFiles('events');
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Local file access is disabled.');
+  }
 
-      const targetFiles = files.filter(f => f.startsWith(runId) && f.endsWith('.json'));
-      const tasks = targetFiles.map(f => downloadJson<StageEvent>(`events/${f}`));
-      const loaded = await Promise.all(tasks);
+  // Supabase: List files and filter by name before downloading
+  try {
+    const { listJsonFiles, downloadJson } = await import('./services/supabase_storage');
+    const files = await listJsonFiles('events');
 
-      loaded.forEach(item => {
-        if (item) events.push(item);
-      });
-    } catch (e) {
-      console.error('[Storage] Failed to load stage events from Supabase:', e);
-    }
-  } else {
-    // Local: Filter by filename
-    try {
-      await ensureDirs();
-      const files = await readdir(DIRS.events);
-      for (const file of files) {
-        if (file.startsWith(runId) && file.endsWith('.json')) {
-          const data = await _load<StageEvent>(DIRS.events, file.replace('.json', ''));
-          if (data) events.push(data);
-        }
-      }
-    } catch {
-      // Ignore errors (e.g. dir not found)
-    }
+    const targetFiles = files.filter(f => f.startsWith(runId) && f.endsWith('.json'));
+    const tasks = targetFiles.map(f => downloadJson<StageEvent>(`events/${f}`));
+    const loaded = await Promise.all(tasks);
+
+    loaded.forEach(item => {
+      if (item) events.push(item);
+    });
+  } catch (e) {
+    console.error('[Storage] Failed to load stage events from Supabase:', e);
   }
 
   return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());

@@ -18,15 +18,43 @@ import type {
 } from '$lib/types';
 
 // ============================================
-// 환경 설정
+// 환경 설정 - Enhanced v2.0
 // ============================================
 
 const config = loadEnvConfig();
-export const MODEL = config.OPENAI_MODEL || 'gpt-4o-mini';
-export const FAST_MODEL = config.OPENAI_FAST_MODEL || 'gpt-5';
-export const EXTRACTOR_MODEL = config.OPENAI_EXTRACTOR_MODEL || 'gpt-5';
+import { detectEnvironment, logSystemStatus, type RuntimeProfile } from './envCheck';
+
+// 환경 감지 및 최적화 설정
+const envInfo = detectEnvironment();
+const isDevelopment = envInfo.isDevelopment;
+const runtimeProfile: RuntimeProfile = envInfo.runtimeProfile;
+
+// 개발 모드에서 자동으로 빠른 모델 사용 (비용 절감 + 속도 향상)
+const DEV_MODEL = 'gpt-4o-mini';  // 개발용 빠른 모델
+
+export const MODEL = isDevelopment && !config.OPENAI_MODEL
+  ? DEV_MODEL
+  : config.OPENAI_MODEL || 'gpt-4o-mini';
+
+export const FAST_MODEL = isDevelopment && !config.OPENAI_FAST_MODEL
+  ? DEV_MODEL  // 개발: 빠른 모델
+  : config.OPENAI_FAST_MODEL || 'gpt-4o-mini';
+
+export const EXTRACTOR_MODEL = isDevelopment && !config.OPENAI_EXTRACTOR_MODEL
+  ? DEV_MODEL  // 개발: 빠른 모델
+  : config.OPENAI_EXTRACTOR_MODEL || 'gpt-4o-mini';
+
 export const FALLBACK_MODEL = 'gpt-4o-mini';
 
+// 서버 시작 시 시스템 상태 로그 출력
+if (typeof process !== 'undefined') {
+  logSystemStatus();
+  console.log(`[Agent] Model Configuration:`);
+  console.log(`  • MODEL:           ${MODEL} ${isDevelopment && !config.OPENAI_MODEL ? '(dev auto)' : ''}`);
+  console.log(`  • FAST_MODEL:      ${FAST_MODEL} ${isDevelopment && !config.OPENAI_FAST_MODEL ? '(dev auto)' : ''}`);
+  console.log(`  • EXTRACTOR_MODEL: ${EXTRACTOR_MODEL} ${isDevelopment && !config.OPENAI_EXTRACTOR_MODEL ? '(dev auto)' : ''}`);
+  console.log('');
+}
 
 let apiKeyInitialized = false;
 
@@ -121,6 +149,15 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
   ],
   "route_suggestion": "EXTRACT" | "REQUEST_MORE_INPUT" | "HITL_TRIAGE" | "REJECT"
 }
+
+## route_suggestion 판정 규칙 (반드시 준수!)
+위에서 판정한 is_shareholder_register와 has_required_info 값에 따라 route_suggestion을 결정:
+- is_shareholder_register="YES" AND has_required_info="YES" → **반드시 "EXTRACT"**
+- is_shareholder_register="YES" AND has_required_info="NO" → "REQUEST_MORE_INPUT"
+- is_shareholder_register="NO" → "REJECT"
+- is_shareholder_register="UNKNOWN" → "HITL_TRIAGE"
+
+⚠️ 주의: is_shareholder_register="YES"이고 has_required_info="YES"인데 "REJECT"를 출력하면 오류입니다!
 
 ## 금지
 - 주주 정보를 추출하지 마세요 (C단계 역할)
@@ -653,6 +690,24 @@ const analystAgent = new Agent({
 // Agent 실행 함수
 // ============================================
 
+const DEFAULT_AGENT_TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS || '120000');
+const EXTRACTOR_TIMEOUT_MS = Number(process.env.EXTRACTOR_TIMEOUT_MS || '240000');
+const ALLOW_FALLBACK = process.env.ALLOW_FALLBACK === 'true';
+
+function runWithTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${ms}ms`));
+    }, ms);
+  });
+
+  return Promise.race([
+    promise.finally(() => clearTimeout(timer)),
+    timeout
+  ]);
+}
+
 /**
  * JSON 응답 파싱 헬퍼
  */
@@ -715,7 +770,11 @@ export async function runGatekeeperAgent(
 
   try {
     const startTime = Date.now();
-    const result = await run(gatekeeperAgent, input);
+    const result = await runWithTimeout(
+      run(gatekeeperAgent, input),
+      DEFAULT_AGENT_TIMEOUT_MS,
+      'B_Gatekeeper'
+    );
     const duration = Date.now() - startTime;
     logExecutionCheckpoint(runId, 'B_Gatekeeper', `AI Response received in ${duration}ms`);
 
@@ -726,8 +785,8 @@ export async function runGatekeeperAgent(
 
   } catch (error) {
     console.error('[Agent] B_Gatekeeper error:', error);
+    if (!ALLOW_FALLBACK) throw error;
 
-    // Fallback: gpt-4o 모델로 재시도
     console.log('[Agent] Retrying with fallback model...');
     const fallbackAgent = new Agent({
       name: 'B_Gatekeeper_Fallback',
@@ -735,7 +794,11 @@ export async function runGatekeeperAgent(
       instructions: GATEKEEPER_INSTRUCTIONS,
     });
 
-    const result = await run(fallbackAgent, input);
+    const result = await runWithTimeout(
+      run(fallbackAgent, input),
+      DEFAULT_AGENT_TIMEOUT_MS,
+      'B_Gatekeeper_Fallback'
+    );
 
     const output = result.finalOutput || '';
     return parseJsonResponse<DocumentAssessment>(output);
@@ -798,7 +861,11 @@ JSON 형식으로만 응답하세요.
 
   try {
     const startTime = Date.now();
-    const result = await run(extractorAgent, input);
+    const result = await runWithTimeout(
+      run(extractorAgent, input),
+      EXTRACTOR_TIMEOUT_MS,
+      'C_Extractor'
+    );
     const duration = Date.now() - startTime;
     logExecutionCheckpoint(runId, 'C_Extractor', `AI Response received in ${duration}ms`);
 
@@ -809,15 +876,19 @@ JSON 형식으로만 응답하세요.
 
   } catch (error) {
     console.error('[Agent] C_Extractor error:', error);
+    if (!ALLOW_FALLBACK) throw error;
 
-    // Fallback
     const fallbackAgent = new Agent({
       name: 'C_Extractor_Fallback',
       model: FALLBACK_MODEL,
       instructions: EXTRACTOR_INSTRUCTIONS,
     });
 
-    const result = await run(fallbackAgent, input);
+    const result = await runWithTimeout(
+      run(fallbackAgent, input),
+      EXTRACTOR_TIMEOUT_MS,
+      'C_Extractor_Fallback'
+    );
 
     const output = result.finalOutput || '';
     return parseJsonResponse<ExtractorOutput>(output);
@@ -846,7 +917,11 @@ ${JSON.stringify(extractorOutput, null, 2)}`;
 
   try {
     const startTime = Date.now();
-    const result = await run(normalizerAgent, input);
+    const result = await runWithTimeout(
+      run(normalizerAgent, input),
+      DEFAULT_AGENT_TIMEOUT_MS,
+      'D_Normalizer'
+    );
     const duration = Date.now() - startTime;
     logExecutionCheckpoint(runId, 'D_Normalizer', `AI Response received in ${duration}ms`);
 
@@ -859,15 +934,19 @@ ${JSON.stringify(extractorOutput, null, 2)}`;
     const errorMsg = error instanceof Error ? error.message : String(error);
     logExecutionCheckpoint(runId, 'D_Normalizer', `ERROR: ${errorMsg}`);
     console.error('[Agent] D_Normalizer error:', error);
+    if (!ALLOW_FALLBACK) throw error;
 
-    // Fallback
     const fallbackAgent = new Agent({
       name: 'D_Normalizer_Fallback',
       model: FALLBACK_MODEL,
       instructions: NORMALIZER_INSTRUCTIONS,
     });
 
-    const result = await run(fallbackAgent, input);
+    const result = await runWithTimeout(
+      run(fallbackAgent, input),
+      DEFAULT_AGENT_TIMEOUT_MS,
+      'D_Normalizer_Fallback'
+    );
 
     const output = result.finalOutput || '';
     return parseJsonResponse<NormalizedDoc>(output);
@@ -895,7 +974,11 @@ ${JSON.stringify({
   }, null, 2)}`;
 
   try {
-    const result = await run(analystAgent, input);
+    const result = await runWithTimeout(
+      run(analystAgent, input),
+      DEFAULT_AGENT_TIMEOUT_MS,
+      'INS_Analyst'
+    );
 
     const output = result.finalOutput || '';
     const answerSet = parseJsonResponse<InsightsAnswerSet>(output);
@@ -904,15 +987,19 @@ ${JSON.stringify({
 
   } catch (error) {
     console.error('[Agent] INS_Analyst error:', error);
+    if (!ALLOW_FALLBACK) throw error;
 
-    // Fallback
     const fallbackAgent = new Agent({
       name: 'INS_Analyst_Fallback',
       model: FALLBACK_MODEL,
       instructions: ANALYST_INSTRUCTIONS,
     });
 
-    const result = await run(fallbackAgent, input);
+    const result = await runWithTimeout(
+      run(fallbackAgent, input),
+      DEFAULT_AGENT_TIMEOUT_MS,
+      'INS_Analyst_Fallback'
+    );
 
     const output = result.finalOutput || '';
     return parseJsonResponse<InsightsAnswerSet>(output);

@@ -10,11 +10,7 @@
 const fs = require('fs');
 const path = require('path');
 const { createCanvas, Image } = require('@napi-rs/canvas');
-const { pathToFileURL } = require('url');
-
 // Redirect all logs to stderr to keep stdout clean for JSON
-const originalLog = console.log;
-const originalWarn = console.warn;
 console.log = console.error;
 console.warn = console.error;
 
@@ -40,15 +36,33 @@ class NodeCanvasFactory {
 
 async function run() {
     console.error('Starting conversion...');
-    const filePath = process.argv[2];
-    if (!filePath) {
-        console.error('No file path provided');
-        process.exit(1);
+    const mode = process.argv[2];
+    const label = process.argv[3] || 'stdin';
+
+    let dataBuffer;
+    if (mode === '--base64') {
+        const chunks = [];
+        for await (const chunk of process.stdin) {
+            chunks.push(chunk);
+        }
+        const base64 = Buffer.concat(chunks).toString().trim();
+        if (!base64) {
+            console.error('No base64 data provided on stdin');
+            process.exit(1);
+        }
+        dataBuffer = Buffer.from(base64, 'base64');
+        console.error(`Processing buffer input: ${label}`);
+    } else {
+        const filePath = mode;
+        if (!filePath) {
+            console.error('No file path provided');
+            process.exit(1);
+        }
+        console.error(`Processing file: ${filePath}`);
+        dataBuffer = fs.readFileSync(filePath);
     }
 
     try {
-        console.error(`Processing file: ${filePath}`);
-
         // Load PDF.js (CommonJS in v3)
         const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
         const getDocument = pdfjs.getDocument;
@@ -57,11 +71,10 @@ async function run() {
         // Configure worker
         GlobalWorkerOptions.workerSrc = path.join(__dirname, '../node_modules/pdfjs-dist/legacy/build/pdf.worker.js');
 
-        const data = fs.readFileSync(filePath);
         const canvasFactory = new NodeCanvasFactory();
 
         const loadingTask = getDocument({
-            data: new Uint8Array(data),
+            data: new Uint8Array(dataBuffer),
             cMapUrl: path.join(__dirname, '../node_modules/pdfjs-dist/cmaps/'),
             cMapPacked: true,
             canvasFactory: canvasFactory,

@@ -85,10 +85,11 @@
   }
 
   // Initial Load
-  async function loadInitialData() {
+  async function loadInitialData({ light = false }: { light?: boolean } = {}) {
     try {
-      dlog("api", `Fetching run metadata: /api/runs/${runId}`);
-      const response = await fetch(`/api/runs/${runId}`);
+      const url = light ? `/api/runs/${runId}?light=1` : `/api/runs/${runId}`;
+      dlog("api", `Fetching run metadata: ${url}`);
+      const response = await fetch(url);
       if (!response.ok) throw new Error("Run not found");
       const data = await response.json();
       dlog("api", `Current run status: ${data.run.status}`, data.run);
@@ -105,8 +106,8 @@
       if (data.run.model) connectedModel = data.run.model;
       if (data.run.storageProvider) storageProvider = data.run.storageProvider;
 
-      // Load existing logs to populate pipeline (Only if logs are empty to prevent re-render flicker)
-      if (logs.length === 0) {
+      // Load existing logs to populate pipeline (Only on full load)
+      if (!light && logs.length === 0) {
         try {
           dlog("api", `Fetching logs: /api/runs/${runId}/logs`);
           const logRes = await fetch(`/api/runs/${runId}/logs`);
@@ -140,7 +141,7 @@
         }
       }
 
-      if (data.run.status === "completed" && !finalAnswer) {
+      if (!light && data.run.status === "completed" && !finalAnswer) {
         const res = await fetch(`/api/runs/${runId}/result`);
         if (res.ok) {
           const r = await res.json();
@@ -151,7 +152,7 @@
       }
 
       // If still pending, trigger execution (Self-healing for Vercel cold starts/missed triggers)
-      if (data.run.status === "pending") {
+      if (!light && data.run.status === "pending") {
         dlog("poll", "Run is pending, triggering execution...");
         fetch(`/api/runs/${runId}/execute`, { method: "POST" }).catch((err) =>
           dlog("error", "Failed to trigger execution", err),
@@ -159,7 +160,7 @@
       }
 
       // If completed but result missing, retry once to load result
-      if (data.run.status === "completed" && !finalAnswer) {
+      if (!light && data.run.status === "completed" && !finalAnswer) {
         dlog("poll", "Run completed but result missing, retrying result fetch");
         const retry = await fetch(`/api/runs/${runId}/result`);
         if (retry.ok) {
@@ -210,7 +211,7 @@
       }
       dlog("poll", "Polling triggered");
       // console.log("[Polling] Fetching updates..."); // Reduce noise
-      await loadInitialData();
+      await loadInitialData({ light: true });
 
       // Check again after load to stop immediately if changed
       const currentStatus = status as string;

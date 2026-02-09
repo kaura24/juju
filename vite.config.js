@@ -12,7 +12,10 @@ export default defineConfig({
 
     // 개발 서버 설정 추가
     server: {
-        open: true  // 서버 시작 시 자동으로 크롬 브라우저 열기
+        open: true,  // 서버 시작 시 자동으로 크롬 브라우저 열기
+        fs: {
+            allow: ['..']  // 프로젝트 루트 상위까지 접근 허용 (package.json import용)
+        }
     },
 
     test: {

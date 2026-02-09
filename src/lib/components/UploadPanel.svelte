@@ -13,6 +13,7 @@
   let error: string | null = $state(null);
   let dragOver = $state(false);
   let isProcessingPdf = $state(false);
+  let debugLogs: string[] = $state([]);
 
   // Logic
   let agentsReady = $state(false);
@@ -20,9 +21,9 @@
   let previews: string[] = $state([]);
 
   // Refs
-  let cameraInput: HTMLInputElement;
-  let fileInput: HTMLInputElement;
-  let modeSelectionNode: HTMLDivElement;
+  let cameraInput: HTMLInputElement | null = $state(null);
+  let fileInput: HTMLInputElement | null = $state(null);
+  let modeSelectionNode: HTMLDivElement | null = $state(null);
 
   /**
    * PDF to Image conversion using pdfjs-dist
@@ -149,9 +150,15 @@
   });
 
   function handleCameraClick() {
+    const msg = `[${new Date().toLocaleTimeString()}] Camera Click - cameraInput: ${cameraInput ? "exists" : "null"}`;
+    debugLogs = [...debugLogs, msg];
+    console.log(msg, cameraInput);
     cameraInput?.click();
   }
   function handleFileClick() {
+    const msg = `[${new Date().toLocaleTimeString()}] File Click - fileInput: ${fileInput ? "exists" : "null"}`;
+    debugLogs = [...debugLogs, msg];
+    console.log(msg, fileInput);
     fileInput?.click();
   }
 
@@ -298,6 +305,7 @@
 
     <div class="input-actions-row">
       <button
+        type="button"
         class="fluent-btn"
         onclick={handleFileClick}
         disabled={uploadStatus !== "idle"}
@@ -306,6 +314,7 @@
         <span>파일 선택</span>
       </button>
       <button
+        type="button"
         class="fluent-btn camera-btn"
         onclick={handleCameraClick}
         disabled={uploadStatus !== "idle"}
@@ -401,11 +410,15 @@
                 >브라우저에서 직접 변환하여 안정성을 높입니다</span
               >
             {:else if uploadStatus === "uploading"}
-              <span class="primary-msg">파일을 서버로 전송 중...</span>
-              <span class="sub-msg">잠시만 기다려주세요</span>
+              <span class="primary-msg">파일 업로드 중...</span>
+              <span class="sub-msg"
+                >업로드 완료 후 단계별 진행 화면으로 이동합니다</span
+              >
             {:else}
-              <span class="primary-msg success">업로드 완료!</span>
-              <span class="sub-msg">분석 페이지로 이동합니다...</span>
+              <span class="primary-msg success">업로드 완료</span>
+              <span class="sub-msg"
+                >분석 단계별 진행 화면으로 이동합니다...</span
+              >
             {/if}
           </div>
 
@@ -468,6 +481,24 @@
       <span>{error}</span>
     </div>
   {/if}
+
+  <!-- Debug Panel -->
+  <div class="debug-panel">
+    <div class="debug-header">
+      <strong>🔍 Debug Log</strong>
+      <button onclick={() => (debugLogs = [])}>Clear</button>
+    </div>
+    <div class="debug-content">
+      {#if debugLogs.length === 0}
+        <span class="debug-empty">버튼을 클릭하면 여기에 로그가 표시됩니다</span
+        >
+      {:else}
+        {#each debugLogs as log}
+          <div class="debug-log">{log}</div>
+        {/each}
+      {/if}
+    </div>
+  </div>
 </div>
 
 <style>
@@ -907,5 +938,53 @@
     font-weight: 600;
     font-size: 0.9rem;
     border: 1px solid #fecaca;
+  }
+
+  /* Debug Panel Styles */
+  .debug-panel {
+    margin-top: 24px;
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 8px;
+    overflow: hidden;
+    font-family: monospace;
+    font-size: 12px;
+  }
+  .debug-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: #0f172a;
+    color: #94a3b8;
+  }
+  .debug-header button {
+    padding: 2px 8px;
+    background: #334155;
+    border: none;
+    border-radius: 4px;
+    color: #94a3b8;
+    cursor: pointer;
+    font-size: 11px;
+  }
+  .debug-header button:hover {
+    background: #475569;
+    color: white;
+  }
+  .debug-content {
+    padding: 12px;
+    max-height: 150px;
+    overflow-y: auto;
+    color: #22c55e;
+  }
+  .debug-empty {
+    color: #64748b;
+  }
+  .debug-log {
+    padding: 4px 0;
+    border-bottom: 1px solid #334155;
+  }
+  .debug-log:last-child {
+    border-bottom: none;
   }
 </style>

@@ -7,20 +7,21 @@ import type { RequestHandler } from './$types';
 import { getRun, getStageEvents, getHITLPacketByRunId, getArtifact, updateRunStatus } from '$lib/server/storage';
 import { MODEL, FAST_MODEL } from '$lib/server/agents';
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async ({ params, url }) => {
   try {
     const runId = params.id;
+    const light = url.searchParams.get('light') === '1';
 
     const run = await getRun(runId);
     if (!run) {
       return json({ error: 'Run not found' }, { status: 404 });
     }
 
-    const events = await getStageEvents(runId);
-    const hitlPacket = await getHITLPacketByRunId(runId);
+    const events = light ? [] : await getStageEvents(runId);
+    const hitlPacket = light ? null : await getHITLPacketByRunId(runId);
 
     // Self-heal: if results exist but status is still running/pending, finalize
-    if (run.status === 'running' || run.status === 'pending') {
+    if (!light && (run.status === 'running' || run.status === 'pending')) {
       const fastAnswer = await getArtifact(runId, 'FAST', 'answer_set');
       const insightsAnswer = await getArtifact(runId, 'INSIGHTS', 'answer_set');
       if (fastAnswer || insightsAnswer) {

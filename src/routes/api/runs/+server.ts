@@ -71,9 +71,13 @@ export const POST: RequestHandler = async ({ request, platform }) => {
       console.log(`[API] Using platform.waitUntil for run ${run.id}`);
       (platform as any).waitUntil(executionPromise);
     } else {
-      console.warn(`[API] platform.waitUntil not available, executing synchronously for run ${run.id}`);
-      // Fallback: run synchronously so Vercel doesn't drop the background task
-      await executionPromise;
+      const allowAsync = process.env.NODE_ENV === 'development' || process.env.USE_SUPABASE === 'true';
+      if (allowAsync) {
+        console.warn(`[API] platform.waitUntil not available; running in background for run ${run.id}`);
+      } else {
+        console.warn(`[API] platform.waitUntil not available, executing synchronously for run ${run.id}`);
+        await executionPromise;
+      }
     }
 
     return json({

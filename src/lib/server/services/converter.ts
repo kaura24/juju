@@ -6,7 +6,6 @@
  * - AI가 직접 읽지 못하는 형식을 분석 가능하게 변환
  */
 
-import { readFile } from 'fs/promises';
 import { createCanvas, Image, loadImage } from '@napi-rs/canvas';
 import * as UTIF from 'utif';
 import { spawn } from 'child_process';
@@ -20,16 +19,31 @@ if (typeof global !== 'undefined') {
 
 /**
  * 이미지 리사이징/보정 헬퍼 (받침 인식 개선)
+ * 개발 환경에서는 자동으로 fast 모드 적용
  */
-const OCR_UPSCALE_FACTOR = Number(process.env.OCR_UPSCALE_FACTOR || '1.8');
-const OCR_CONTRAST = Number(process.env.OCR_CONTRAST || '1.3');
-const OCR_SHARPEN = Number(process.env.OCR_SHARPEN || '0.6');
-const OCR_MAX_DIMENSION = Number(process.env.OCR_MAX_DIMENSION || '3500');
+const isDevelopment = process.env.NODE_ENV === 'development';
+
+// 개발 모드: 전처리 최소화로 속도 향상
+const OCR_UPSCALE_FACTOR = Number(process.env.OCR_UPSCALE_FACTOR || (isDevelopment ? '1.0' : '1.8'));
+const OCR_CONTRAST = Number(process.env.OCR_CONTRAST || (isDevelopment ? '1.0' : '1.3'));
+const OCR_SHARPEN = Number(process.env.OCR_SHARPEN || (isDevelopment ? '0' : '0.6'));
+
+// 개발 모드: fast 프리셋 자동 적용
+const OCR_PRESET = (process.env.OCR_PRESET || (isDevelopment ? 'fast' : 'balanced')).toLowerCase();
+const PRESET_CONFIG: Record<string, { maxDimension: number; jpegQuality: number }> = {
+    fast: { maxDimension: 1800, jpegQuality: 70 },      // 속도 우선
+    balanced: { maxDimension: 3000, jpegQuality: 85 },
+    quality: { maxDimension: 3500, jpegQuality: 92 }
+};
+const ACTIVE_PRESET = PRESET_CONFIG[OCR_PRESET] || PRESET_CONFIG.balanced;
+
+console.log(`[Converter] Preset: ${OCR_PRESET.toUpperCase()} (maxDim=${ACTIVE_PRESET.maxDimension}, upscale=${OCR_UPSCALE_FACTOR}, contrast=${OCR_CONTRAST}, sharpen=${OCR_SHARPEN})`);
+
 
 async function resizeImageIfNeeded(
     base64: string,
     mimeType: string,
-    maxDimension: number = OCR_MAX_DIMENSION,
+    maxDimension: number = ACTIVE_PRESET.maxDimension,
     upscaleFactor: number = OCR_UPSCALE_FACTOR,
     contrast: number = OCR_CONTRAST,
     sharpen: number = OCR_SHARPEN
@@ -57,7 +71,9 @@ async function resizeImageIfNeeded(
     const height = Math.max(1, Math.round(image.height * scale));
 
     if (scale !== 1) {
-        console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height}`);
+        console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height} (preset=${OCR_PRESET})`);
+    } else {
+        console.log(`[Converter] Image size ${image.width}x${image.height} (preset=${OCR_PRESET})`);
     }
 
     const canvas = createCanvas(width, height);
@@ -103,29 +119,42 @@ async function resizeImageIfNeeded(
         ctx.putImageData(dst, 0, 0);
     }
 
-    return canvas.toBuffer('image/jpeg', 85).toString('base64');
+    const quality = ACTIVE_PRESET.jpegQuality;
+    const outputBuffer = canvas.toBuffer('image/jpeg', quality);
+    if (scale !== 1 || contrast !== 1 || sharpen > 0) {
+        console.log(`[Converter] JPEG bytes=${outputBuffer.length}, quality=${quality}, preset=${OCR_PRESET}`);
+    }
+
+    return outputBuffer.toString('base64');
 }
 
 /**
- * PDF 파일을 이미지(Base64) 배열로 변환 - 프로세스 격리 모드 (Child Process)
+ * PDF 파일을 이미지(Base64) 배열로 변환 - v2.0 (Memory-based, stdin 모드)
  * - 메모리 및 안정성 확보를 위해 독립 프로세스에서 실행
+ * - stdin으로 Base64 전달하여 임시 파일 불필요 (서버리스 최적화)
  */
-export async function convertPdfToImages(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
-    console.log(`[Converter] Converting PDF via Isolated Process: ${filePath}`);
+export async function convertPdfToImagesFromBuffer(
+    pdfBuffer: Buffer,
+    sourceLabel: string
+): Promise<{ base64: string; mimeType: string }[]> {
+    const startTime = Date.now();
+    const bufferSizeMB = (pdfBuffer.length / 1024 / 1024).toFixed(2);
+
+    console.log(`[Converter] Converting PDF via stdin (Memory-based): ${sourceLabel}`);
+    console.log(`[Converter] Buffer size: ${bufferSizeMB} MB`);
 
     return new Promise((resolve, reject) => {
-        // ESM 환경에서 __dirname 대체
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = dirname(__filename);
 
-        // 현재 파일(converter.ts)의 위치: src/lib/server/services/
-        // scripts 폴더 위치: src/lib/server/scripts/
-        // 따라서 ../scripts/pdf-to-images.cjs로 접근
-        const scriptPath = join(__dirname, '..', 'scripts', 'pdf-to-images.cjs');
+        // 스크립트 경로 탐색 (src/lib/server/services -> scripts)
+        const scriptPath = join(__dirname, '..', '..', '..', '..', 'scripts', 'pdf-to-images.cjs');
 
         console.log(`[Converter] Script path: ${scriptPath}`);
-        // Spawn doesn't have maxBuffer, it's a stream.
-        const child = spawn('node', [scriptPath, filePath], {
+        console.log(`[Converter] Mode: stdin (--stdin) - No temp files`);
+
+        // --stdin 모드로 실행 (Base64를 stdin으로 전달)
+        const child = spawn('node', [scriptPath, '--stdin'], {
             env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' }
         });
 
@@ -138,23 +167,29 @@ export async function convertPdfToImages(filePath: string): Promise<{ base64: st
 
         child.stderr.on('data', (chunk: Buffer) => {
             stderrChunks.push(chunk);
-            console.error(`[Converter-Child-Stderr] ${chunk.toString()}`);
+            // 진행 로그만 출력 (에러 아님)
+            const msg = chunk.toString().trim();
+            if (msg.includes('[PDF-Converter]')) {
+                console.log(msg);
+            }
         });
 
         child.on('close', (code: number) => {
+            const duration = Date.now() - startTime;
             const stdoutData = Buffer.concat(stdoutChunks).toString();
             const stderrData = Buffer.concat(stderrChunks).toString();
 
             if (code === 0) {
                 try {
                     const images = JSON.parse(stdoutData.trim());
-                    console.log(`[Converter] Isolated Process Success. Retrieved ${images.length} pages.`);
+                    console.log(`[Converter] ✅ Success! ${images.length} pages in ${duration}ms`);
                     resolve(images);
                 } catch (e: any) {
                     console.error('[Converter] JSON Parse Fail. Stdout length:', stdoutData.length);
                     reject(new Error(`Failed to parse bridge output: ${e.message}`));
                 }
             } else {
+                console.error(`[Converter] ❌ Failed with code ${code}`);
                 reject(new Error(`Isolated converter failed with code ${code}. Stderr: ${stderrData}`));
             }
         });
@@ -162,20 +197,26 @@ export async function convertPdfToImages(filePath: string): Promise<{ base64: st
         child.on('error', (err: Error) => {
             reject(new Error(`Failed to start isolated converter: ${err.message}`));
         });
+
+        // stdin으로 Base64 데이터 전달
+        child.stdin.write(pdfBuffer.toString('base64'));
+        child.stdin.end();
     });
 }
 
 /**
  * TIFF 파일을 이미지(Base64)로 변환
  */
-export async function convertTiffToImages(filePath: string): Promise<{ base64: string; mimeType: string }[]> {
-    console.log(`[Converter] Converting TIFF: ${filePath}`);
-    const data = await readFile(filePath);
-    const ifds = UTIF.decode(data);
+export async function convertTiffToImagesFromBuffer(
+    tiffBuffer: Buffer,
+    sourceLabel: string
+): Promise<{ base64: string; mimeType: string }[]> {
+    console.log(`[Converter] Converting TIFF (buffer): ${sourceLabel}`);
+    const ifds = UTIF.decode(tiffBuffer);
     const images: { base64: string; mimeType: string }[] = [];
 
     for (let i = 0; i < ifds.length; i++) {
-        UTIF.decodeImage(data, ifds[i]);
+        UTIF.decodeImage(tiffBuffer, ifds[i]);
         const rgba = UTIF.toRGBA8(ifds[i]);
 
         const canvas = createCanvas(ifds[i].width, ifds[i].height);
@@ -201,18 +242,15 @@ export async function convertTiffToImages(filePath: string): Promise<{ base64: s
 /**
  * 파일 확장자에 따라 적절한 분석용 이미지 추출 (멀티파트 가능성 고려)
  */
-// Helper to download URL to tmp file
-async function downloadUrlToTmp(url: string, ext: string): Promise<string> {
+// Helper to download URL into memory (no local temp files)
+async function downloadUrlToBuffer(url: string): Promise<{ buffer: Buffer; contentType: string | null; ext: string }> {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch ${url}: ${response.statusText}`);
 
+    const contentType = response.headers.get('content-type');
     const buffer = Buffer.from(await response.arrayBuffer());
-    const tempName = `download_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-    const { tmpdir } = await import('os');
-    const tempPath = join(tmpdir(), tempName);
-
-    await import('fs/promises').then(fs => fs.writeFile(tempPath, buffer));
-    return tempPath;
+    const ext = url.split('?')[0].split('.').pop() || '';
+    return { buffer, contentType, ext };
 }
 
 /**
@@ -220,53 +258,31 @@ async function downloadUrlToTmp(url: string, ext: string): Promise<string> {
  * URL이 입력된 경우 (Vercel 환경), 임시 파일로 다운로드 후 처리
  */
 export async function prepareImagesForAnalysis(filePathOrUrl: string): Promise<{ base64: string; mimeType: string }[]> {
-    let targetPath = filePathOrUrl;
-    let isTemp = false;
-
-    try {
-        // URL 감지 및 다운로드
-        if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
-            console.log(`[Converter] Downloading remote file: ${filePathOrUrl}`);
-            const ext = filePathOrUrl.split('?')[0].split('.').pop() || 'tmp';
-            targetPath = await downloadUrlToTmp(filePathOrUrl, ext);
-            isTemp = true;
-        }
-
-        const ext = targetPath.toLowerCase().split('.').pop();
-        let result: { base64: string; mimeType: string }[] = [];
-
-        if (ext === 'pdf') {
-            result = await convertPdfToImages(targetPath);
-        } else if (ext === 'tif' || ext === 'tiff') {
-            result = await convertTiffToImages(targetPath);
-        } else {
-            // 일반 이미지
-            const buffer = await readFile(targetPath);
-            let base64 = buffer.toString('base64');
-            const mimeTypes: Record<string, string> = {
-                'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
-                'gif': 'image/gif', 'webp': 'image/webp'
-            };
-            let mimeType = mimeTypes[ext || ''] || 'image/png';
-
-            // Resize check
-            base64 = await resizeImageIfNeeded(base64, mimeType);
-            mimeType = 'image/jpeg'; // Resized is always jpeg
-
-            result = [{ base64, mimeType }];
-        }
-
-        return result;
-
-    } finally {
-        // 임시 파일 정리
-        if (isTemp) {
-            try {
-                await import('fs/promises').then(fs => fs.unlink(targetPath));
-                console.log(`[Converter] Cleaned up temp file: ${targetPath}`);
-            } catch (e) {
-                console.warn(`[Converter] Failed to cleanup temp file: ${targetPath}`);
-            }
-        }
+    if (!filePathOrUrl.startsWith('http://') && !filePathOrUrl.startsWith('https://')) {
+        throw new Error('[Converter] Local file paths are disabled. Expected a remote URL.');
     }
+
+    console.log(`[Converter] Downloading remote file: ${filePathOrUrl}`);
+    const { buffer, contentType, ext } = await downloadUrlToBuffer(filePathOrUrl);
+    const normalizedExt = ext.toLowerCase();
+    let result: { base64: string; mimeType: string }[] = [];
+
+    if (normalizedExt === 'pdf') {
+        result = await convertPdfToImagesFromBuffer(buffer, filePathOrUrl);
+    } else if (normalizedExt === 'tif' || normalizedExt === 'tiff') {
+        result = await convertTiffToImagesFromBuffer(buffer, filePathOrUrl);
+    } else {
+        const mimeTypes: Record<string, string> = {
+            'jpg': 'image/jpeg', 'jpeg': 'image/jpeg', 'png': 'image/png',
+            'gif': 'image/gif', 'webp': 'image/webp'
+        };
+        let mimeType = mimeTypes[normalizedExt || ''] || contentType || 'image/png';
+        let base64 = buffer.toString('base64');
+
+        base64 = await resizeImageIfNeeded(base64, mimeType);
+        mimeType = 'image/jpeg';
+        result = [{ base64, mimeType }];
+    }
+
+    return result;
 }

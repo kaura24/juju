@@ -32,6 +32,7 @@ export async function uploadImage(fileBuffer: Buffer, fileName: string, contentT
             });
 
         if (error) throw error;
+        console.log(`[SupabaseStorage] Image uploaded: ${BUCKET_NAME}/${fileName}`);
         return data;
     } catch (error) {
         console.error('[SupabaseStorage] Upload Error:', error);
@@ -69,6 +70,7 @@ export async function uploadJson(path: string, data: any) {
         // Don't throw for minor errors, but here it's critical
         throw error;
     }
+    console.log(`[SupabaseStorage] JSON uploaded: juju-data/${path}`);
 }
 
 /**
@@ -87,6 +89,7 @@ export async function downloadJson<T>(path: string): Promise<T | null> {
 
     const text = await data.text();
     try {
+        console.log(`[SupabaseStorage] JSON downloaded: juju-data/${path}`);
         return JSON.parse(text) as T;
     } catch (e) {
         console.error(`[SupabaseStorage] JSON Parse Error for ${path}:`, e);
@@ -111,6 +114,7 @@ export async function listJsonFiles(folder: string): Promise<string[]> {
         return [];
     }
 
+    console.log(`[SupabaseStorage] JSON list: juju-data/${folder} (${data.length} files)`);
     return data.map(file => file.name);
 }
 
@@ -130,6 +134,7 @@ export async function uploadRawFile(fileBuffer: Buffer, fileName: string, conten
         console.error(`[SupabaseStorage] Failed to upload Raw File to ${fileName}:`, error);
         throw error;
     }
+    console.log(`[SupabaseStorage] Raw file uploaded: juju-data/${fileName}`);
 }
 
 /**

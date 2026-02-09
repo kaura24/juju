@@ -1,5 +1,5 @@
 
-const { createCanvas, Image } = require('@napi-rs/canvas');
+const { createCanvas } = require('@napi-rs/canvas');
 console.log('1. Canvas loaded');
 
 try {

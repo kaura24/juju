@@ -1,6 +1,12 @@
 <script lang="ts">
   import "./layout.css";
   import { page } from "$app/stores";
+  import { resolve } from "$app/paths";
+  import { version } from "$app/environment";
+
+  // package.json에서 버전 가져오기
+  import pkgJson from "../../package.json";
+  const appVersion = pkgJson.version;
 
   let { children } = $props();
 </script>
@@ -20,15 +26,16 @@
 
 <div class="app">
   <nav class="navbar">
-    <a href="/" class="brand">
+    <a href={resolve("/")} class="brand">
       <span class="logo">📊</span>
       <span class="name">JuJu</span>
-      <span class="version">v 2.4</span>
+      <span class="version">v{appVersion}</span>
     </a>
     <div class="nav-links">
-      <a href="/" class:active={$page.url.pathname === "/"}>홈</a>
-      <a href="/hitl" class:active={$page.url.pathname.startsWith("/hitl")}
-        >HITL</a
+      <a href={resolve("/")} class:active={$page.url.pathname === "/"}>홈</a>
+      <a
+        href={resolve("/hitl")}
+        class:active={$page.url.pathname.startsWith("/hitl")}>HITL</a
       >
     </div>
   </nav>
@@ -38,7 +45,7 @@
   </div>
 
   <footer class="footer">
-    <p>주주명부 AI 분석 시스템 • GPT-4o 기반 (v2.4.0)</p>
+    <p>주주명부 AI 분석 시스템 • GPT-4o 기반 (v{appVersion})</p>
   </footer>
 </div>
 
