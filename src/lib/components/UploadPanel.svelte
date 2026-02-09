@@ -194,6 +194,16 @@
 
       if (!response.ok) {
         const data = await response.json();
+
+        // 423 Locked (Session Busy) handling
+        if (response.status === 423) {
+          error =
+            "현재 다른 분석 작업이 진행 중입니다. 잠시 후 다시 시도해주세요.";
+          uploadStatus = "idle";
+          busyMode = null;
+          return;
+        }
+
         throw new Error(data.error || "업로드 실패");
       }
 

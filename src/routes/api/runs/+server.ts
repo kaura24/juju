@@ -8,8 +8,12 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createRun, saveFile, listRuns } from '$lib/server/storage';
 import { executeRun } from '$lib/server/orchestrator';
+import { acquireSessionLock, releaseSessionLock } from '$lib/server/sessionLock';
+import { persistLog } from '$lib/server/services/persistentLogger';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
+  let runId: string | null = null;
+
   try {
     const contentType = request.headers.get('content-type') || '';
     let filePaths: string[] = [];
@@ -45,7 +49,6 @@ export const POST: RequestHandler = async ({ request, platform }) => {
           if (img.base64 && img.mimeType) {
             const path = await saveBase64Image(img.base64, img.mimeType);
             filePaths.push(path);
-            // For base64, we don't have original name, so skip metadata or use synthetic name
             fileMetadata[path] = { original_name: `image_${Date.now()}.${img.mimeType.split('/')[1]}` };
           }
         }
@@ -58,14 +61,35 @@ export const POST: RequestHandler = async ({ request, platform }) => {
 
     // Run 생성
     const run = await createRun(filePaths, mode, fileMetadata);
+    runId = run.id;
+
+    // 세션 잠금 획득 시도
+    const lockResult = await acquireSessionLock(run.id);
+    if (!lockResult.success) {
+      await persistLog('WARN', 'API', 'Session lock denied - another run in progress', {
+        newRunId: run.id,
+        blockedByRunId: lockResult.currentRunId
+      });
+      return json({
+        error: '현재 다른 분석이 진행 중입니다. 완료될 때까지 기다려 주세요.',
+        currentRunId: lockResult.currentRunId,
+        status: 'BUSY'
+      }, { status: 423 }); // 423 Locked
+    }
+
+    await persistLog('INFO', 'API', 'New run created with session lock', { runId: run.id, mode });
 
     // [FIX] Trigger execution immediately on the same instance to avoid Vercel FS isolation issues
-    // This allows the run to start even if the subsequent /execute request hits a different instance
     console.log(`[API] Triggering execution for run ${run.id} with mode: ${run.execution_mode || 'MULTI_AGENT (default)'}`);
 
-    const executionPromise = executeRun(run.id, run.execution_mode).catch(err => {
-      console.error(`[API] Background execution error for run ${run.id}:`, err);
-    });
+    const executionPromise = executeRun(run.id, run.execution_mode)
+      .catch(err => {
+        console.error(`[API] Background execution error for run ${run.id}:`, err);
+      })
+      .finally(() => {
+        // 실행 완료 시 잠금 해제
+        releaseSessionLock(run.id).catch(e => console.error('[API] Failed to release lock:', e));
+      });
 
     if ((platform as any)?.waitUntil) {
       console.log(`[API] Using platform.waitUntil for run ${run.id}`);
@@ -93,6 +117,10 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     });
 
   } catch (error) {
+    // 에러 시 잠금 해제
+    if (runId) {
+      await releaseSessionLock(runId).catch(() => { });
+    }
     console.error('[API] POST /api/runs error:', error);
     return json({
       error: error instanceof Error ? error.message : 'Internal server error'

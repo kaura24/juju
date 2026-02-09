@@ -101,8 +101,8 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
 
 ## 필수 확인 정보 (Document Level)
 - **회사명**: 상단/하단/도장 등에서 '주식회사 OO' 또는 '(주)OO' 형식을 찾으십시오.
-- **발행일 (Issue Date)**: 문서 전체의 기준이 되는 날짜(발행일, 기준일, 생성일, 작성일, 'ㅇㅇㅇ일 현재', 또는 법인인감/도장 근처의 날짜)는 '발행일'로 통합하십시오. (없으면 null)
-- **날짜 구분 원칙 (CRITICAL)**: 문서 전체에 적용되는 '발행일(Issue Date)'과 주주 개인의 신원 원천인 '생년월일(Birth Date)'을 절대 혼동하거나 섞지 마십시오. 날짜가 **제목 아래, 문서 하단, 혹은 도장 날인 근처**에 있다면 발행일일 가능성이 매우 높습니다.
+- **발행일 (Issue Date)**: 문서의 기준 날짜 (작성일, 현재 기준일 등). 생년월일과 혼동 주의.
+- **문서 타입**: "주주명부", "주식대장", "사원명부", "출자자명부", "주주등의 명세서", "Stockholder Register", "Shareholder List" 등 주주/출자자 정보를 나열한 모든 문서를 포함합니다. 제목이 없더라도 내용이 표 형식으로 이름/주식수 등을 포함하면 주주명부로 간주합니다.
 
 ## 지분 산정 기준 감지 (detected_ownership_basis)
 문서에서 지분을 어떤 기준으로 표시하는지 감지:
@@ -112,15 +112,15 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
 - AMOUNT_SHARES: 출자좌수, 좌수
 - UNKNOWN: 판단 불가
 
-## 판정 기준
+## 판정 기준 (매우 중요)
 1. is_shareholder_register:
-   - YES: 명확히 주주/출자자 명부 형식이며, **모든 주주에 대해** 성명과 식별정보가 1:1로 매칭되어 존재함
-   - NO: 다른 문서이거나, 주주명은 있으나 식별정보가 누락된 주주가 존재하는 경우 (1:1 매칭이 깨진 경우)
-   - UNKNOWN: 판단 불가
+   - YES: 주주/출자자 명부 형식이거나, 표(Table) 형태로 다수의 인명과 지분(주식수/금액/지분율) 정보가 포함된 경우. **제목이 없어도 내용이 주주명부 같으면 YES입니다.**
+   - NO: 영수증, 세금계산서, 등기부등본, 정관, 단순 안내문 등 주주 리스트와 무관한 문서.
+   - UNKNOWN: 판단이 어렵거나 내용이 너무 흐릿한 경우.
 
 2. has_required_info:
-   - YES: 모든 주주의 이름 + 식별정보 + 지분정보가 존재하여 완벽한 분석이 가능함
-   - NO: 분석에 필요한 핵심 정보(특히 개별 주주의 식별번호)가 하나라도 누락됨
+   - YES: 분석에 필요한 핵심 정보(성명, 주식수/지분율)가 식별 가능함. (주민등록번호 등 고유식별정보가 없어도 이름/주식수만 있으면 YES로 간주 - 추후 HITL에서 처리)
+   - NO: 성명이나 지분 정보 자체가 아예 누락되어 분석이 불가능한 수준.
    - UNKNOWN: 확인 불가
 
 ## 출력 형식
@@ -143,25 +143,20 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
   },
   "detected_document_type": "주주명부" | "출자자명부" | "사원명부" | null,
   "detected_ownership_basis": "SHARE_COUNT" | "RATIO_PERCENT" | "AMOUNT_KRW" | "AMOUNT_SHARES" | "UNKNOWN",
-  "rationale": "판단 근거 설명",
+  "rationale": "판단 근거 설명 (왜 주주명부라고 생각했는지, 또는 왜 아니라고 생각했는지)",
   "evidence_refs": [
     { "page_no": 1, "line_snippet": "근거 텍스트", "source": "VISION" }
   ],
   "route_suggestion": "EXTRACT" | "REQUEST_MORE_INPUT" | "HITL_TRIAGE" | "REJECT"
 }
 
-## route_suggestion 판정 규칙 (반드시 준수!)
-위에서 판정한 is_shareholder_register와 has_required_info 값에 따라 route_suggestion을 결정:
-- is_shareholder_register="YES" AND has_required_info="YES" → **반드시 "EXTRACT"**
-- is_shareholder_register="YES" AND has_required_info="NO" → "REQUEST_MORE_INPUT"
-- is_shareholder_register="NO" → "REJECT"
-- is_shareholder_register="UNKNOWN" → "HITL_TRIAGE"
+## route_suggestion 판정 규칙 (엄격 준수)
+- **EXTRACT**: 주주명부(YES)이고 주요 정보(이름, 지분)가 있을 때. (식별번호 없어도 EXTRACT로 보낼 것)
+- **REQUEST_MORE_INPUT**: 주주명부(YES)이나 파일이 잘렸거나 중요한 정보가 심각하게 훼손된 경우.
+- **HITL_TRIAGE**: 주주명부인지 확실하지 않거나(UNKNOWN), 특이한 형태인 경우.
+- **REJECT**: 명확하게 주주명부가 아닌 다른 문서(영수증, 신분증 등)일 때만 사용. **(조금이라도 주주명부 같으면 절대 REJECT 하지 마시오)**
 
-⚠️ 주의: is_shareholder_register="YES"이고 has_required_info="YES"인데 "REJECT"를 출력하면 오류입니다!
-
-## 금지
-- 주주 정보를 추출하지 마세요 (C단계 역할)
-- 추측하지 말고, 불확실하면 UNKNOWN을 사용하세요
+⚠️ 주의: "주민등록번호가 없다"는 이유로 REJECT 하지 마십시오. 이름과 지분만 있으면 일단 EXTRACT로 보내십시오.
 
 ## 역할 경계
 당신의 역할은 "문서 판정"입니다:
