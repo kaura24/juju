@@ -112,6 +112,9 @@ export function emitError(runId: string, errorMessage: string): void {
 
   console.error(`[Events] Error for run ${runId}: ${errorMessage}`);
   broadcast(runId, message);
+
+  // [Vercel Fix] 에러 후 리스너 자동 정리
+  scheduleListenerCleanup(runId);
 }
 
 /**
@@ -126,6 +129,9 @@ export function emitCompleted(runId: string): void {
 
   console.log(`[Events] Run ${runId} completed`);
   broadcast(runId, message);
+
+  // [Vercel Fix] 완료 후 리스너 자동 정리
+  scheduleListenerCleanup(runId);
 }
 
 /**
@@ -204,10 +210,46 @@ export function createSSEStream(runId: string): ReadableStream<Uint8Array> {
 // ============================================
 
 /**
+ * [Vercel Fix] 완료/에러 후 일정 시간 뒤 리스너 자동 정리
+ * SSE 클라이언트가 마지막 메시지를 받을 시간을 주고 정리
+ */
+function scheduleListenerCleanup(runId: string, delayMs: number = 5000): void {
+  setTimeout(() => {
+    const listeners = eventListeners.get(runId);
+    if (listeners) {
+      console.log(`[Events] Auto-cleaning ${listeners.size} listeners for completed run ${runId}`);
+      eventListeners.delete(runId);
+    }
+  }, delayMs);
+}
+
+/**
+ * [Vercel Fix] 특정 run의 리스너 즉시 정리
+ */
+export function cleanupRunListeners(runId: string): void {
+  const listeners = eventListeners.get(runId);
+  if (listeners) {
+    console.log(`[Events] Force-cleaning ${listeners.size} listeners for run ${runId}`);
+    eventListeners.delete(runId);
+  }
+}
+
+/**
  * 리스너 수 조회
  */
 export function getListenerCount(runId: string): number {
   return eventListeners.get(runId)?.size ?? 0;
+}
+
+/**
+ * 전체 이벤트 상태 디버그 정보
+ */
+export function getEventDebugInfo(): { totalRuns: number; totalListeners: number } {
+  let totalListeners = 0;
+  for (const listeners of eventListeners.values()) {
+    totalListeners += listeners.size;
+  }
+  return { totalRuns: eventListeners.size, totalListeners };
 }
 
 /**

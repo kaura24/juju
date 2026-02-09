@@ -13,7 +13,8 @@
   let error: string | null = $state(null);
   let dragOver = $state(false);
   let isProcessingPdf = $state(false);
-  let debugLogs: string[] = $state([]);
+  let uploadAbortController: AbortController | null = $state(null);
+  let cancelRequested = $state(false);
 
   // Logic
   let agentsReady = $state(false);
@@ -21,9 +22,9 @@
   let previews: string[] = $state([]);
 
   // Refs
-  let cameraInput: HTMLInputElement | null = $state(null);
-  let fileInput: HTMLInputElement | null = $state(null);
-  let modeSelectionNode: HTMLDivElement | null = $state(null);
+  let cameraInput: HTMLInputElement;
+  let fileInput: HTMLInputElement;
+  let modeSelectionNode: HTMLDivElement;
 
   /**
    * PDF to Image conversion using pdfjs-dist
@@ -41,9 +42,9 @@
     const maxPages = Math.min(pdf.numPages, 10); // Limit to 10 pages for safety
 
     for (let i = 1; i <= maxPages; i++) {
+      if (cancelRequested) throw new Error("CANCELLED");
       const page = await pdf.getPage(i);
-      // Reduce scale for faster upload (1.5 is sufficient for OCR)
-      const viewport = page.getViewport({ scale: 1.5 });
+      const viewport = page.getViewport({ scale: 2.0 });
 
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
@@ -56,8 +57,8 @@
           viewport: viewport,
         }).promise;
 
-        const blob = await new Promise<Blob | null>(
-          (resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8), // Quality 0.8 is good balance
+        const blob = await new Promise<Blob | null>((resolve) =>
+          canvas.toBlob(resolve, "image/jpeg", 0.9),
         );
 
         if (blob) {
@@ -77,11 +78,13 @@
    */
   async function processAndSetFiles(rawFiles: FileList | File[]) {
     isProcessingPdf = true;
+    cancelRequested = false;
     error = null;
     const processed: File[] = [];
 
     try {
       for (const file of Array.from(rawFiles)) {
+        if (cancelRequested) throw new Error("CANCELLED");
         if (
           file.type === "application/pdf" ||
           file.name.toLowerCase().endsWith(".pdf")
@@ -97,8 +100,12 @@
       processed.forEach((f) => dt.items.add(f));
       files = dt.files;
     } catch (e: any) {
-      console.error("[PDF Conversion Error]", e);
-      error = "PDF 변환 중 오류가 발생했습니다.";
+      if (e?.message === "CANCELLED") {
+        error = "변환이 중단되었습니다.";
+      } else {
+        console.error("[PDF Conversion Error]", e);
+        error = "PDF 변환 중 오류가 발생했습니다.";
+      }
     } finally {
       isProcessingPdf = false;
     }
@@ -151,23 +158,19 @@
   });
 
   function handleCameraClick() {
-    const msg = `[${new Date().toLocaleTimeString()}] Camera Click - cameraInput: ${cameraInput ? "exists" : "null"}`;
-    debugLogs = [...debugLogs, msg];
-    console.log(msg, cameraInput);
     cameraInput?.click();
   }
   function handleFileClick() {
-    const msg = `[${new Date().toLocaleTimeString()}] File Click - fileInput: ${fileInput ? "exists" : "null"}`;
-    debugLogs = [...debugLogs, msg];
-    console.log(msg, fileInput);
     fileInput?.click();
   }
 
   async function handleFileChange(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      // Replace existing files with new selection
-      await processAndSetFiles(input.files);
+      const combined = files
+        ? [...Array.from(files), ...Array.from(input.files)]
+        : Array.from(input.files);
+      await processAndSetFiles(combined);
       input.value = ""; // Clear for next selection
     }
   }
@@ -178,6 +181,11 @@
     uploadStatus = "uploading";
     busyMode = mode;
     error = null;
+    cancelRequested = false;
+    if (uploadAbortController) {
+      uploadAbortController.abort();
+    }
+    uploadAbortController = new AbortController();
 
     try {
       const formData = new FormData();
@@ -186,24 +194,14 @@
       }
       formData.append("mode", mode);
 
-      // Add timestamp to prevent browser caching of POST requests
-      const response = await fetch(`/api/runs?t=${Date.now()}`, {
+      const response = await fetch("/api/runs", {
         method: "POST",
         body: formData,
+        signal: uploadAbortController.signal,
       });
 
       if (!response.ok) {
         const data = await response.json();
-
-        // 423 Locked (Session Busy) handling
-        if (response.status === 423) {
-          error =
-            "현재 다른 분석 작업이 진행 중입니다. 잠시 후 다시 시도해주세요.";
-          uploadStatus = "idle";
-          busyMode = null;
-          return;
-        }
-
         throw new Error(data.error || "업로드 실패");
       }
 
@@ -211,16 +209,31 @@
 
       // Stage 2: Navigating
       uploadStatus = "navigating";
+      uploadAbortController = null;
 
       // Artificial delay for UX (to show the "success/navigating" state)
       setTimeout(() => {
         dispatch("uploaded", { runId, mode });
       }, 1200);
     } catch (e) {
-      error = e instanceof Error ? e.message : "업로드 실패";
+      if (e instanceof DOMException && e.name === "AbortError") {
+        error = "업로드가 중단되었습니다.";
+      } else {
+        error = e instanceof Error ? e.message : "업로드 실패";
+      }
       uploadStatus = "idle";
       busyMode = null;
     }
+  }
+
+  function handleAbortUpload() {
+    cancelRequested = true;
+    if (uploadAbortController) {
+      uploadAbortController.abort();
+      uploadAbortController = null;
+    }
+    uploadStatus = "idle";
+    busyMode = null;
   }
 
   async function handleDrop(e: DragEvent) {
@@ -315,7 +328,6 @@
 
     <div class="input-actions-row">
       <button
-        type="button"
         class="fluent-btn"
         onclick={handleFileClick}
         disabled={uploadStatus !== "idle"}
@@ -324,7 +336,6 @@
         <span>파일 선택</span>
       </button>
       <button
-        type="button"
         class="fluent-btn camera-btn"
         onclick={handleCameraClick}
         disabled={uploadStatus !== "idle"}
@@ -420,15 +431,11 @@
                 >브라우저에서 직접 변환하여 안정성을 높입니다</span
               >
             {:else if uploadStatus === "uploading"}
-              <span class="primary-msg">파일 업로드 중...</span>
-              <span class="sub-msg"
-                >업로드 완료 후 단계별 진행 화면으로 이동합니다</span
-              >
+              <span class="primary-msg">파일을 서버로 전송 중...</span>
+              <span class="sub-msg">잠시만 기다려주세요</span>
             {:else}
-              <span class="primary-msg success">업로드 완료</span>
-              <span class="sub-msg"
-                >분석 단계별 진행 화면으로 이동합니다...</span
-              >
+              <span class="primary-msg success">업로드 완료!</span>
+              <span class="sub-msg">분석 페이지로 이동합니다...</span>
             {/if}
           </div>
 
@@ -439,6 +446,10 @@
               class:infinite={isProcessingPdf || uploadStatus === "uploading"}
             ></div>
           </div>
+
+          <button class="cancel-btn" onclick={handleAbortUpload}>
+            강제 중단
+          </button>
         </div>
       </div>
     {:else}
@@ -491,24 +502,6 @@
       <span>{error}</span>
     </div>
   {/if}
-
-  <!-- Debug Panel -->
-  <div class="debug-panel">
-    <div class="debug-header">
-      <strong>🔍 Debug Log</strong>
-      <button onclick={() => (debugLogs = [])}>Clear</button>
-    </div>
-    <div class="debug-content">
-      {#if debugLogs.length === 0}
-        <span class="debug-empty">버튼을 클릭하면 여기에 로그가 표시됩니다</span
-        >
-      {:else}
-        {#each debugLogs as log}
-          <div class="debug-log">{log}</div>
-        {/each}
-      {/if}
-    </div>
-  </div>
 </div>
 
 <style>
@@ -909,6 +902,22 @@
     border-color: #7dd3fc !important;
   }
 
+  .cancel-btn {
+    align-self: flex-start;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #b91c1c;
+    background: #fff1f2;
+    border: 1px solid #fecdd3;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+  .cancel-btn:hover {
+    background: #ffe4e6;
+    border-color: #fda4af;
+  }
+
   .loader-spin {
     animation: spin 3s infinite linear;
     display: inline-block;
@@ -948,53 +957,5 @@
     font-weight: 600;
     font-size: 0.9rem;
     border: 1px solid #fecaca;
-  }
-
-  /* Debug Panel Styles */
-  .debug-panel {
-    margin-top: 24px;
-    background: #1e293b;
-    border: 1px solid #334155;
-    border-radius: 8px;
-    overflow: hidden;
-    font-family: monospace;
-    font-size: 12px;
-  }
-  .debug-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 12px;
-    background: #0f172a;
-    color: #94a3b8;
-  }
-  .debug-header button {
-    padding: 2px 8px;
-    background: #334155;
-    border: none;
-    border-radius: 4px;
-    color: #94a3b8;
-    cursor: pointer;
-    font-size: 11px;
-  }
-  .debug-header button:hover {
-    background: #475569;
-    color: white;
-  }
-  .debug-content {
-    padding: 12px;
-    max-height: 150px;
-    overflow-y: auto;
-    color: #22c55e;
-  }
-  .debug-empty {
-    color: #64748b;
-  }
-  .debug-log {
-    padding: 4px 0;
-    border-bottom: 1px solid #334155;
-  }
-  .debug-log:last-child {
-    border-bottom: none;
   }
 </style>

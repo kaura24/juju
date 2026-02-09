@@ -90,12 +90,15 @@ html {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  height: 100%;
 }
 
 body {
   background: var(--fluent-bg-solid);
   color: var(--fluent-text-primary);
   min-height: 100vh;
+  height: 100%;
+  overflow-y: auto;
 }
 
 /* Selection */

@@ -87,7 +87,6 @@
         logs: LogEntry[];
         status: "running" | "completed" | "error" | "pending";
         startTime: string;
-        durationMs?: number;
     }
 
     let agentGroups = $derived.by(() => {
@@ -111,7 +110,6 @@
                     logs: [],
                     status: "running", // Newly created group is running
                     startTime: log.timestamp,
-                    durationMs: undefined,
                 };
                 groups.push(currentGroup);
             }
@@ -121,10 +119,6 @@
         // Update status of the very last group based on activeAgent or log content
         if (currentGroup) {
             const group = currentGroup as AgentGroup;
-            const lastDuration = [...group.logs]
-                .reverse()
-                .find((l) => typeof l.duration_ms === "number");
-            group.durationMs = lastDuration?.duration_ms;
             if (group.logs.some((l) => l.level === "ERROR")) {
                 group.status = "error";
             } else if (activeAgent && activeAgent !== group.agent) {
@@ -194,11 +188,6 @@
                             <span class="agent-name">
                                 {agentDisplayNames[group.agent] || group.agent}
                             </span>
-                            {#if group.durationMs}
-                                <span class="duration-chip">
-                                    ⏱ {(group.durationMs / 1000).toFixed(1)}s
-                                </span>
-                            {/if}
                             {#if group.status === "running"}
                                 <span class="status-badge running">Running</span
                                 >
@@ -408,15 +397,6 @@
         color: var(--fluent-text-primary);
         font-size: 1rem;
         flex: 1;
-    }
-
-    .duration-chip {
-        font-size: 0.75rem;
-        color: var(--fluent-text-secondary);
-        background: rgba(148, 163, 184, 0.2);
-        padding: 2px 8px;
-        border-radius: 999px;
-        font-weight: 600;
     }
 
     .status-badge {

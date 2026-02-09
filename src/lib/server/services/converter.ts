@@ -19,35 +19,23 @@ if (typeof global !== 'undefined') {
 
 /**
  * 이미지 리사이징/보정 헬퍼 (받침 인식 개선)
- * 개발 환경에서는 자동으로 fast 모드 적용
  */
-const isDevelopment = process.env.NODE_ENV === 'development';
-
-// 개발 모드: 전처리 최소화로 속도 향상
-const OCR_UPSCALE_FACTOR = Number(process.env.OCR_UPSCALE_FACTOR || (isDevelopment ? '1.0' : '1.8'));
-const OCR_CONTRAST = Number(process.env.OCR_CONTRAST || (isDevelopment ? '1.0' : '1.3'));
-const OCR_SHARPEN = Number(process.env.OCR_SHARPEN || (isDevelopment ? '0' : '0.6'));
-
-// 개발 모드: fast 프리셋 자동 적용
-const OCR_PRESET = (process.env.OCR_PRESET || (isDevelopment ? 'fast' : 'balanced')).toLowerCase();
-const PRESET_CONFIG: Record<string, { maxDimension: number; jpegQuality: number }> = {
-    fast: { maxDimension: 1800, jpegQuality: 70 },      // 속도 우선
-    balanced: { maxDimension: 3000, jpegQuality: 85 },
-    quality: { maxDimension: 3500, jpegQuality: 92 }
-};
-const ACTIVE_PRESET = PRESET_CONFIG[OCR_PRESET] || PRESET_CONFIG.balanced;
-
-console.log(`[Converter] Preset: ${OCR_PRESET.toUpperCase()} (maxDim=${ACTIVE_PRESET.maxDimension}, upscale=${OCR_UPSCALE_FACTOR}, contrast=${OCR_CONTRAST}, sharpen=${OCR_SHARPEN})`);
-
+const OCR_UPSCALE_FACTOR = Number(process.env.OCR_UPSCALE_FACTOR || '1.8');
+const OCR_CONTRAST = Number(process.env.OCR_CONTRAST || '1.3');
+const OCR_SHARPEN = Number(process.env.OCR_SHARPEN || '0.6');
+const OCR_MAX_DIMENSION = Number(process.env.OCR_MAX_DIMENSION || '3500');
 
 async function resizeImageIfNeeded(
     base64: string,
     mimeType: string,
-    maxDimension: number = ACTIVE_PRESET.maxDimension,
+    maxDimension: number = OCR_MAX_DIMENSION,
     upscaleFactor: number = OCR_UPSCALE_FACTOR,
     contrast: number = OCR_CONTRAST,
     sharpen: number = OCR_SHARPEN
 ): Promise<string> {
+    // 이미지 리사이즈/보정 비활성화 (성능 최우선)
+    return base64;
+
     const buffer = Buffer.from(base64, 'base64');
     const image = await loadImage(buffer);
 
@@ -71,9 +59,7 @@ async function resizeImageIfNeeded(
     const height = Math.max(1, Math.round(image.height * scale));
 
     if (scale !== 1) {
-        console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height} (preset=${OCR_PRESET})`);
-    } else {
-        console.log(`[Converter] Image size ${image.width}x${image.height} (preset=${OCR_PRESET})`);
+        console.log(`[Converter] Resizing image from ${image.width}x${image.height} to ${width}x${height}`);
     }
 
     const canvas = createCanvas(width, height);
@@ -119,42 +105,26 @@ async function resizeImageIfNeeded(
         ctx.putImageData(dst, 0, 0);
     }
 
-    const quality = ACTIVE_PRESET.jpegQuality;
-    const outputBuffer = canvas.toBuffer('image/jpeg', quality);
-    if (scale !== 1 || contrast !== 1 || sharpen > 0) {
-        console.log(`[Converter] JPEG bytes=${outputBuffer.length}, quality=${quality}, preset=${OCR_PRESET}`);
-    }
-
-    return outputBuffer.toString('base64');
+    return canvas.toBuffer('image/jpeg', 85).toString('base64');
 }
 
 /**
- * PDF 파일을 이미지(Base64) 배열로 변환 - v2.0 (Memory-based, stdin 모드)
+ * PDF 파일을 이미지(Base64) 배열로 변환 - 프로세스 격리 모드 (Child Process)
  * - 메모리 및 안정성 확보를 위해 독립 프로세스에서 실행
- * - stdin으로 Base64 전달하여 임시 파일 불필요 (서버리스 최적화)
  */
 export async function convertPdfToImagesFromBuffer(
     pdfBuffer: Buffer,
     sourceLabel: string
 ): Promise<{ base64: string; mimeType: string }[]> {
-    const startTime = Date.now();
-    const bufferSizeMB = (pdfBuffer.length / 1024 / 1024).toFixed(2);
-
-    console.log(`[Converter] Converting PDF via stdin (Memory-based): ${sourceLabel}`);
-    console.log(`[Converter] Buffer size: ${bufferSizeMB} MB`);
+    console.log(`[Converter] Converting PDF via Isolated Process (buffer): ${sourceLabel}`);
 
     return new Promise((resolve, reject) => {
         const __filename = fileURLToPath(import.meta.url);
         const __dirname = dirname(__filename);
-
-        // 스크립트 경로 탐색 (src/lib/server/services -> scripts)
-        const scriptPath = join(__dirname, '..', '..', '..', '..', 'scripts', 'pdf-to-images.cjs');
+        const scriptPath = join(__dirname, '..', 'scripts', 'pdf-to-images.cjs');
 
         console.log(`[Converter] Script path: ${scriptPath}`);
-        console.log(`[Converter] Mode: stdin (--stdin) - No temp files`);
-
-        // --stdin 모드로 실행 (Base64를 stdin으로 전달)
-        const child = spawn('node', [scriptPath, '--stdin'], {
+        const child = spawn('node', [scriptPath, '--base64', sourceLabel], {
             env: { ...process.env, NODE_OPTIONS: '--max-old-space-size=2048' }
         });
 
@@ -167,29 +137,23 @@ export async function convertPdfToImagesFromBuffer(
 
         child.stderr.on('data', (chunk: Buffer) => {
             stderrChunks.push(chunk);
-            // 진행 로그만 출력 (에러 아님)
-            const msg = chunk.toString().trim();
-            if (msg.includes('[PDF-Converter]')) {
-                console.log(msg);
-            }
+            console.error(`[Converter-Child-Stderr] ${chunk.toString()}`);
         });
 
         child.on('close', (code: number) => {
-            const duration = Date.now() - startTime;
             const stdoutData = Buffer.concat(stdoutChunks).toString();
             const stderrData = Buffer.concat(stderrChunks).toString();
 
             if (code === 0) {
                 try {
                     const images = JSON.parse(stdoutData.trim());
-                    console.log(`[Converter] ✅ Success! ${images.length} pages in ${duration}ms`);
+                    console.log(`[Converter] Isolated Process Success. Retrieved ${images.length} pages.`);
                     resolve(images);
                 } catch (e: any) {
                     console.error('[Converter] JSON Parse Fail. Stdout length:', stdoutData.length);
                     reject(new Error(`Failed to parse bridge output: ${e.message}`));
                 }
             } else {
-                console.error(`[Converter] ❌ Failed with code ${code}`);
                 reject(new Error(`Isolated converter failed with code ${code}. Stderr: ${stderrData}`));
             }
         });
@@ -198,7 +162,6 @@ export async function convertPdfToImagesFromBuffer(
             reject(new Error(`Failed to start isolated converter: ${err.message}`));
         });
 
-        // stdin으로 Base64 데이터 전달
         child.stdin.write(pdfBuffer.toString('base64'));
         child.stdin.end();
     });

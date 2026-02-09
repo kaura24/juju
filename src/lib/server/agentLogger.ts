@@ -73,14 +73,47 @@ export interface OrchestratorSummary {
 // 로그 저장소 (In-Memory)
 // ============================================
 import { saveRunLog, loadRunLog } from './storage';
+import { appendFile } from 'fs/promises';
+import { join } from 'path';
+
+import os from 'os';
+// detect if running on Vercel or explicitly enabled via env
+const USE_SUPABASE = process.env.VERCEL === '1' || process.env.VERCEL === 'true' || process.env.USE_SUPABASE === 'true';
+const BASE_DIR = USE_SUPABASE ? os.tmpdir() : process.cwd();
+const ERROR_LOG_PATH = join(BASE_DIR, 'logs', 'server_error.log');
 
 // In-Memory cache (still useful for speed, but synced to disk)
+// [Vercel Fix] 서버리스 환경에서 이전 run 데이터가 잔존하지 않도록 관리
 const runLogs = new Map<string, RunLogReport>();
+const MAX_CACHED_RUNS = 5; // 메모리 누수 방지
+
+/**
+ * 인메모리 캐시 정리 (가장 오래된 항목부터 제거)
+ */
+function pruneRunLogsCache(): void {
+  if (runLogs.size <= MAX_CACHED_RUNS) return;
+  const keys = Array.from(runLogs.keys());
+  const toRemove = keys.slice(0, keys.length - MAX_CACHED_RUNS);
+  for (const key of toRemove) {
+    runLogs.delete(key);
+  }
+  console.log(`[AgentLogger] Pruned ${toRemove.length} old run logs from cache`);
+}
+
+/**
+ * 특정 run의 캐시를 강제 제거
+ */
+export function evictRunLogCache(runId: string): void {
+  runLogs.delete(runId);
+}
 
 /**
  * 새 실행 로그 초기화
  */
 export async function initRunLog(runId: string): Promise<RunLogReport> {
+  // [Vercel Fix] 새 run 시작 전 캐시 정리
+  pruneRunLogsCache();
+
   const report: RunLogReport = {
     run_id: runId,
     start_time: new Date().toISOString(),
@@ -156,7 +189,15 @@ export async function addAgentLog(
   // 비동기 저장
   saveRunLog(report).catch(e => console.error('Log save failed', e));
 
-  // No local error log writes (Supabase-only policy)
+  // Critical Error Logging (File System)
+  if (level === 'ERROR') {
+    try {
+      const errorMsg = `[${entry.timestamp}] [${runId}] [${agent}] [${action}] ${detail}\n`;
+      await appendFile(ERROR_LOG_PATH, errorMsg, 'utf-8');
+    } catch (err) {
+      console.error('Failed to write to server_error.log', err);
+    }
+  }
 }
 
 /**
@@ -209,16 +250,19 @@ export async function completeRunLog(
  * 실행 로그 조회
  */
 export async function getRunLog(runId: string): Promise<RunLogReport | undefined> {
-  // 캐시 먼저 확인
+  // [Vercel Fix] 완료된 run은 항상 Supabase에서 fresh read
   const cached = runLogs.get(runId);
-  if (cached) return cached;
+  if (cached && cached.status === 'RUNNING') return cached;
 
-  // 디스크에서 로드 시도
+  // 디스크(Supabase)에서 로드 - single source of truth
   const loaded = await loadRunLog(runId);
   if (loaded) {
     runLogs.set(runId, loaded);
     return loaded;
   }
+
+  // 캐시에 있으면 fallback
+  if (cached) return cached;
   return undefined;
 }
 

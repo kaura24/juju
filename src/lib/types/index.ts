@@ -242,6 +242,10 @@ export interface DocumentAssessment {
   doc_quality: DocQuality;
   detected_document_type: string | null;  // 주주명부, 출자자명부, 사원명부 등
   detected_ownership_basis: OwnershipBasis;  // 지분 산정 기준 감지
+  document_info?: {
+    company_name: string | null;
+    document_date: string | null;
+  };
   rationale: string;
   evidence_refs: EvidenceRef[];
   route_suggestion: 'EXTRACT' | 'REQUEST_MORE_INPUT' | 'HITL_TRIAGE' | 'REJECT';

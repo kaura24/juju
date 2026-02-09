@@ -32,6 +32,7 @@ import {
   completeAgentLog,
   completeRunLog,
   logExecutionCheckpoint,
+  evictRunLogCache,
   type OrchestratorSummary
 } from './agentLogger';
 
@@ -70,15 +71,22 @@ async function loadImageAsBase64(filePath: string): Promise<{ base64: string; mi
  */
 async function uploadImagesToSupabase(runId: string, images: { base64: string; mimeType: string }[]): Promise<string[]> {
   const { env } = await import('$env/dynamic/private');
-  if (!env.SUPABASE_URL || !env.SUPABASE_ANON_KEY) {
+  const hasServiceKey = !!env.SUPABASE_SERVICE_KEY;
+  const hasAnonKey = !!env.SUPABASE_ANON_KEY;
+  if (!env.SUPABASE_URL || (!hasServiceKey && !hasAnonKey)) {
     console.warn('[Orchestrator] Supabase config missing, skipping cloud upload.');
-    logExecutionCheckpoint(runId, 'uploadImagesToSupabase', 'Supabase config missing. Skipping upload.');
+    logExecutionCheckpoint(
+      runId,
+      'uploadImagesToSupabase',
+      `Supabase config missing. URL=${!!env.SUPABASE_URL}, SERVICE_KEY=${hasServiceKey}, ANON_KEY=${hasAnonKey}. Skipping upload.`
+    );
     return [];
   }
 
   try {
     const { uploadImage, getPublicUrl } = await import('./services/supabase_storage');
     const urls: string[] = [];
+    const totalStart = Date.now();
 
     logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Starting upload for ${images.length} images.`);
 
@@ -89,13 +97,21 @@ async function uploadImagesToSupabase(runId: string, images: { base64: string; m
       const fileName = `${runId}/page_${i + 1}.${fileExt}`;
 
       logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Uploading image ${i + 1}/${images.length}: ${fileName}`);
+      const imageStart = Date.now();
       await uploadImage(buffer, fileName, img.mimeType);
+      const imageDuration = Date.now() - imageStart;
 
       const url = getPublicUrl(fileName);
-      logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Image ${i + 1} uploaded. URL: ${url}`);
+      logExecutionCheckpoint(
+        runId,
+        'uploadImagesToSupabase',
+        `Image ${i + 1} uploaded in ${imageDuration}ms. URL: ${url}`
+      );
       urls.push(url);
     }
 
+    const totalDuration = Date.now() - totalStart;
+    logExecutionCheckpoint(runId, 'uploadImagesToSupabase', `Upload completed in ${totalDuration}ms for ${images.length} images.`);
     return urls;
   } catch (error) {
     console.error('[Orchestrator] Supabase Upload failed:', error);
@@ -109,6 +125,7 @@ async function uploadImagesToSupabase(runId: string, images: { base64: string; m
 // Session Cancellation Tracking
 // ============================================
 
+// [Vercel Fix] 서버리스 환경에서 잔존 상태 방지
 const cancelledRuns = new Map<string, boolean>();
 
 export function cancelRun(runId: string): void {
@@ -122,6 +139,23 @@ function isCancelled(runId: string): boolean {
 
 function clearCancellation(runId: string): void {
   cancelledRuns.delete(runId);
+}
+
+/**
+ * [Vercel Fix] 모든 인메모리 상태 강제 정리
+ * 새 run 시작 전에 호출하여 이전 인스턴스 잔존 데이터 제거
+ */
+function cleanupStaleInMemoryState(): void {
+  // 5분 이상 된 잠금은 stale로 간주하고 제거
+  // (Vercel warm start 시 이전 run의 잠금이 남아있을 수 있음)
+  if (runLocks.size > 0) {
+    console.warn(`[Orchestrator] Clearing ${runLocks.size} stale run locks from previous invocation`);
+    runLocks.clear();
+  }
+  if (cancelledRuns.size > 10) {
+    console.warn(`[Orchestrator] Clearing ${cancelledRuns.size} stale cancellation flags`);
+    cancelledRuns.clear();
+  }
 }
 
 // ============================================
@@ -138,10 +172,14 @@ let isInitialized = false;
 
 /**
  * Initialize orchestrator - cleanup orphaned sessions
- * Call this once when server starts
+ * [Vercel Fix] 서버리스에서는 매 요청마다 초기화 가능하도록 변경
  */
 export async function initializeOrchestrator(): Promise<void> {
-  if (isInitialized) return;
+  if (isInitialized) {
+    // [Vercel Fix] 이미 초기화되어도 stale 상태 정리는 수행
+    cleanupStaleInMemoryState();
+    return;
+  }
   console.log('[Orchestrator] Initializing...');
 
   try {
@@ -173,6 +211,7 @@ export async function initializeOrchestrator(): Promise<void> {
   }
 
   isInitialized = true;
+  console.log('[Orchestrator] Initialized successfully');
 }
 
 // ============================================
@@ -235,6 +274,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     // Supabase Upload (New)
     // ============================================
     await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
+    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
     logExecutionCheckpoint(runId, 'executeRun', `Uploading images to Supabase...`);
     const imageUrls = await uploadImagesToSupabase(runId, images);
     logExecutionCheckpoint(runId, 'executeRun', `Supabase upload done. URLs: ${imageUrls.length}`);
@@ -291,7 +331,8 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
           await addAgentLog(runId, 'FastExtractor', 'WARNING', `재시도 (${attempt}/${MAX_ATTEMPTS})`, '검증 실패로 인한 AI 재분석 수행');
         }
 
-    console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
+        console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
+        console.log(`[Orchestrator] Run ${runId}: Calling runFastExtractor (Attempt ${attempt})...`);
         logExecutionCheckpoint(runId, 'FastExtractor', `Calling runFastExtractor (Attempt ${attempt})`);
         fastResult = await runFastExtractor(runId, images, feedback, imageUrls);
         logExecutionCheckpoint(runId, 'FastExtractor', `runFastExtractor returned. Valid: ${fastResult.is_valid}`);
@@ -675,9 +716,12 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
       errors: [msg]
     });
   } finally {
-    // Always clear cancellation flag
+    // [Vercel Fix] 완료 후 모든 인메모리 상태 정리
     clearCancellation(runId);
     runLocks.delete(runId);
+    // 완료된 run의 로그 캐시 제거 (다음 조회 시 Supabase에서 fresh read)
+    evictRunLogCache(runId);
+    console.log(`[Orchestrator] Run ${runId} cleanup complete. Active locks: ${runLocks.size}`);
   }
 }
 

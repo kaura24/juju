@@ -18,43 +18,15 @@ import type {
 } from '$lib/types';
 
 // ============================================
-// 환경 설정 - Enhanced v2.0
+// 환경 설정
 // ============================================
 
 const config = loadEnvConfig();
-import { detectEnvironment, logSystemStatus, type RuntimeProfile } from './envCheck';
-
-// 환경 감지 및 최적화 설정
-const envInfo = detectEnvironment();
-const isDevelopment = envInfo.isDevelopment;
-const runtimeProfile: RuntimeProfile = envInfo.runtimeProfile;
-
-// 개발 모드에서 자동으로 빠른 모델 사용 (비용 절감 + 속도 향상)
-const DEV_MODEL = 'gpt-4o-mini';  // 개발용 빠른 모델
-
-export const MODEL = isDevelopment && !config.OPENAI_MODEL
-  ? DEV_MODEL
-  : config.OPENAI_MODEL || 'gpt-4o-mini';
-
-export const FAST_MODEL = isDevelopment && !config.OPENAI_FAST_MODEL
-  ? DEV_MODEL  // 개발: 빠른 모델
-  : config.OPENAI_FAST_MODEL || 'gpt-4o-mini';
-
-export const EXTRACTOR_MODEL = isDevelopment && !config.OPENAI_EXTRACTOR_MODEL
-  ? DEV_MODEL  // 개발: 빠른 모델
-  : config.OPENAI_EXTRACTOR_MODEL || 'gpt-4o-mini';
-
+export const MODEL = config.OPENAI_MODEL || 'gpt-4o-mini';
+export const FAST_MODEL = config.OPENAI_FAST_MODEL || 'gpt-5';
+export const EXTRACTOR_MODEL = config.OPENAI_EXTRACTOR_MODEL || 'gpt-5';
 export const FALLBACK_MODEL = 'gpt-4o-mini';
 
-// 서버 시작 시 시스템 상태 로그 출력
-if (typeof process !== 'undefined') {
-  logSystemStatus();
-  console.log(`[Agent] Model Configuration:`);
-  console.log(`  • MODEL:           ${MODEL} ${isDevelopment && !config.OPENAI_MODEL ? '(dev auto)' : ''}`);
-  console.log(`  • FAST_MODEL:      ${FAST_MODEL} ${isDevelopment && !config.OPENAI_FAST_MODEL ? '(dev auto)' : ''}`);
-  console.log(`  • EXTRACTOR_MODEL: ${EXTRACTOR_MODEL} ${isDevelopment && !config.OPENAI_EXTRACTOR_MODEL ? '(dev auto)' : ''}`);
-  console.log('');
-}
 
 let apiKeyInitialized = false;
 
@@ -98,11 +70,13 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
 - 주주/출자자 이름 (필수)
 - 식별 정보 (필수: **모든 주주 각각에 대하여** 주민등록번호, 생년월일, 사업자번호, 법인번호 중 하나가 1:1로 매칭되어야 함. 즉, **주주의 수와 매칭된 식별번호의 수는 반드시 동일**해야 함)
 - 지분 정보 (필수: 주식수, 지분율(%), 출자금액 중 하나 이상)
+- **회사명 (필수: 문서 전체 기준 회사명)**
+- **발행일 (필수: 문서 전체 기준 발행일/기준일)**
 
 ## 필수 확인 정보 (Document Level)
 - **회사명**: 상단/하단/도장 등에서 '주식회사 OO' 또는 '(주)OO' 형식을 찾으십시오.
-- **발행일 (Issue Date)**: 문서의 기준 날짜 (작성일, 현재 기준일 등). 생년월일과 혼동 주의.
-- **문서 타입**: "주주명부", "주식대장", "사원명부", "출자자명부", "주주등의 명세서", "Stockholder Register", "Shareholder List" 등 주주/출자자 정보를 나열한 모든 문서를 포함합니다. 제목이 없더라도 내용이 표 형식으로 이름/주식수 등을 포함하면 주주명부로 간주합니다.
+- **발행일 (Issue Date)**: 문서 전체의 기준이 되는 날짜(발행일, 기준일, 생성일, 작성일, 'ㅇㅇㅇ일 현재', 또는 법인인감/도장 근처의 날짜)는 '발행일'로 통합하십시오. (없으면 null)
+- **날짜 구분 원칙 (CRITICAL)**: 문서 전체에 적용되는 '발행일(Issue Date)'과 주주 개인의 신원 원천인 '생년월일(Birth Date)'을 절대 혼동하거나 섞지 마십시오. 날짜가 **제목 아래, 문서 하단, 혹은 도장 날인 근처**에 있다면 발행일일 가능성이 매우 높습니다.
 
 ## 지분 산정 기준 감지 (detected_ownership_basis)
 문서에서 지분을 어떤 기준으로 표시하는지 감지:
@@ -112,15 +86,15 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
 - AMOUNT_SHARES: 출자좌수, 좌수
 - UNKNOWN: 판단 불가
 
-## 판정 기준 (매우 중요)
+## 판정 기준
 1. is_shareholder_register:
-   - YES: 주주/출자자 명부 형식이거나, 표(Table) 형태로 다수의 인명과 지분(주식수/금액/지분율) 정보가 포함된 경우. **제목이 없어도 내용이 주주명부 같으면 YES입니다.**
-   - NO: 영수증, 세금계산서, 등기부등본, 정관, 단순 안내문 등 주주 리스트와 무관한 문서.
-   - UNKNOWN: 판단이 어렵거나 내용이 너무 흐릿한 경우.
+   - YES: 명확히 주주/출자자 명부 형식이며, **모든 주주에 대해** 성명과 식별정보가 1:1로 매칭되어 존재함
+   - NO: 다른 문서이거나, 주주명은 있으나 식별정보가 누락된 주주가 존재하는 경우 (1:1 매칭이 깨진 경우)
+   - UNKNOWN: 판단 불가
 
 2. has_required_info:
-   - YES: 분석에 필요한 핵심 정보(성명, 주식수/지분율)가 식별 가능함. (주민등록번호 등 고유식별정보가 없어도 이름/주식수만 있으면 YES로 간주 - 추후 HITL에서 처리)
-   - NO: 성명이나 지분 정보 자체가 아예 누락되어 분석이 불가능한 수준.
+   - YES: 모든 주주의 이름 + 식별정보 + 지분정보 + **회사명** + **발행일**이 존재하여 완벽한 분석이 가능함
+   - NO: 분석에 필요한 핵심 정보가 하나라도 누락됨 (주주 식별정보, 회사명, 발행일 등)
    - UNKNOWN: 확인 불가
 
 ## 출력 형식
@@ -143,20 +117,20 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
   },
   "detected_document_type": "주주명부" | "출자자명부" | "사원명부" | null,
   "detected_ownership_basis": "SHARE_COUNT" | "RATIO_PERCENT" | "AMOUNT_KRW" | "AMOUNT_SHARES" | "UNKNOWN",
-  "rationale": "판단 근거 설명 (왜 주주명부라고 생각했는지, 또는 왜 아니라고 생각했는지)",
+  "document_info": {
+    "company_name": "string | null",
+    "document_date": "string | null"
+  },
+  "rationale": "판단 근거 설명",
   "evidence_refs": [
     { "page_no": 1, "line_snippet": "근거 텍스트", "source": "VISION" }
   ],
   "route_suggestion": "EXTRACT" | "REQUEST_MORE_INPUT" | "HITL_TRIAGE" | "REJECT"
 }
 
-## route_suggestion 판정 규칙 (엄격 준수)
-- **EXTRACT**: 주주명부(YES)이고 주요 정보(이름, 지분)가 있을 때. (식별번호 없어도 EXTRACT로 보낼 것)
-- **REQUEST_MORE_INPUT**: 주주명부(YES)이나 파일이 잘렸거나 중요한 정보가 심각하게 훼손된 경우.
-- **HITL_TRIAGE**: 주주명부인지 확실하지 않거나(UNKNOWN), 특이한 형태인 경우.
-- **REJECT**: 명확하게 주주명부가 아닌 다른 문서(영수증, 신분증 등)일 때만 사용. **(조금이라도 주주명부 같으면 절대 REJECT 하지 마시오)**
-
-⚠️ 주의: "주민등록번호가 없다"는 이유로 REJECT 하지 마십시오. 이름과 지분만 있으면 일단 EXTRACT로 보내십시오.
+## 금지
+- 주주 정보를 추출하지 마세요 (C단계 역할)
+- 추측하지 말고, 불확실하면 UNKNOWN을 사용하세요
 
 ## 역할 경계
 당신의 역할은 "문서 판정"입니다:
@@ -213,6 +187,7 @@ const EXTRACTOR_INSTRUCTIONS = `당신은 한국 주주명부 데이터 추출 �
 
 - company_name: 회사명 (상단 타이틀, 하단 법인인감 등에서 추출). **경고: 주주 리스트 내의 법인 주주와 혼동 금지**
 - document_date: **발행일** (발행일, 기준일, 생성일, 작성일, 'ㅇㅇㅇ일 현재', 도장 근처 날짜 등을 찾아 YYYY-MM-DD 형식으로 정규화).
+- **게이트키퍼 제공 값 우선**: Gatekeeper에서 'company_name'/'document_date'가 JSON으로 제공되면 **그 값을 그대로 사용**하고 재추출/재판정하지 마십시오.
 - **⚠️ 날짜 구분 원칙 (CRITICAL)**: 문서 전체 일관성 데이터인 **'발행일(Issue Date)'**과 개별 주주 식별 데이터인 **'생년월일(Birth Date)'**은 엄연히 다릅니다. 발행일은 보통 제목 주변이나 하단 인감 근처에 위치합니다. 이를 구분하여 각각의 필드에 정확히 배정하십시오.
 - total_shares_declared: 총발행주식수
 - total_capital_declared: 자본금 총액
@@ -296,11 +271,9 @@ const EXTRACTOR_INSTRUCTIONS = `당신은 한국 주주명부 데이터 추출 �
 - ❌ entity_type 최종 판정 (D단계 역할)
 - ❌ 합계 검증 (E단계 역할)
 
-## OCR 및 오타 교정 가이드 (매우 중요)
-- 한국어 이름 인식 시 시각적으로 유사한 글자 오류를 주의하고, 통계적으로 더 흔한 이름을 선택하세요.
-- 예: '홍청군' vs '홍성준' -> '청'과 '성'이 비슷해 보이면 '홍성준'(Seong-jun)이 훨씬 일반적인 이름이므로 '홍성준'으로 추출.
-- 예: '김' vs '검' -> '김'이 압도적으로 많음.
-- 글자가 흐릿하거나 뭉개져 보일 경우, 한국인 성명 규칙에 부합하는 글자로 교정하여 추출하세요.
+## OCR 및 오타 교정 금지 (매우 중요)
+- 이름은 **원문 그대로** 추출하세요. 어떤 경우에도 교정/추측하지 마십시오.
+- 예: '홍청군'은 그대로 '홍청군'으로, '검'은 그대로 '검'으로 유지합니다.
 
 ## DocumentAssessment 사용 주의
 B단계의 DocumentAssessment는 **참조용 컨텍스트**로만 사용:
@@ -685,24 +658,6 @@ const analystAgent = new Agent({
 // Agent 실행 함수
 // ============================================
 
-const DEFAULT_AGENT_TIMEOUT_MS = Number(process.env.AGENT_TIMEOUT_MS || '120000');
-const EXTRACTOR_TIMEOUT_MS = Number(process.env.EXTRACTOR_TIMEOUT_MS || '240000');
-const ALLOW_FALLBACK = process.env.ALLOW_FALLBACK === 'true';
-
-function runWithTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  let timer: NodeJS.Timeout;
-  const timeout = new Promise<never>((_, reject) => {
-    timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${ms}ms`));
-    }, ms);
-  });
-
-  return Promise.race([
-    promise.finally(() => clearTimeout(timer)),
-    timeout
-  ]);
-}
-
 /**
  * JSON 응답 파싱 헬퍼
  */
@@ -752,7 +707,7 @@ export async function runGatekeeperAgent(
         ...remoteImageContents,
         {
           type: 'input_text' as const,
-          text: `이 문서(모든 페이지)를 분석해주세요. JSON 형식으로만 응답하세요.\n(Analysis Context: ${runId}-${Date.now()})`,
+          text: '이 문서(모든 페이지)를 분석해주세요. JSON 형식으로만 응답하세요.',
         },
       ],
     },
@@ -765,11 +720,7 @@ export async function runGatekeeperAgent(
 
   try {
     const startTime = Date.now();
-    const result = await runWithTimeout(
-      run(gatekeeperAgent, input),
-      DEFAULT_AGENT_TIMEOUT_MS,
-      'B_Gatekeeper'
-    );
+    const result = await run(gatekeeperAgent, input);
     const duration = Date.now() - startTime;
     logExecutionCheckpoint(runId, 'B_Gatekeeper', `AI Response received in ${duration}ms`);
 
@@ -780,8 +731,8 @@ export async function runGatekeeperAgent(
 
   } catch (error) {
     console.error('[Agent] B_Gatekeeper error:', error);
-    if (!ALLOW_FALLBACK) throw error;
 
+    // Fallback: gpt-4o 모델로 재시도
     console.log('[Agent] Retrying with fallback model...');
     const fallbackAgent = new Agent({
       name: 'B_Gatekeeper_Fallback',
@@ -789,11 +740,7 @@ export async function runGatekeeperAgent(
       instructions: GATEKEEPER_INSTRUCTIONS,
     });
 
-    const result = await runWithTimeout(
-      run(fallbackAgent, input),
-      DEFAULT_AGENT_TIMEOUT_MS,
-      'B_Gatekeeper_Fallback'
-    );
+    const result = await run(fallbackAgent, input);
 
     const output = result.finalOutput || '';
     return parseJsonResponse<DocumentAssessment>(output);
@@ -818,10 +765,13 @@ export async function runExtractorAgent(
 - 필요 정보 존재: ${assessment.has_required_info}
 - 문서 품질: ${assessment.doc_quality.readability}
 - 테이블 구조: ${assessment.doc_quality.table_structure}
+- 게이트키퍼 회사명: ${assessment.document_info?.company_name ?? 'null'}
+- 게이트키퍼 발행일: ${assessment.document_info?.document_date ?? 'null'}
 
 위 평가를 참고하여 모든 페이지에서 주주 정보를 추출하세요.
+게이트키퍼의 회사명/발행일이 **null이 아니면 그대로 사용**하고 재추출/재판정하지 마세요.
+게이트키퍼 값이 **null일 때만** Extractor가 해당 항목을 추출합니다.
 JSON 형식으로만 응답하세요.
-(Extraction Context: ${runId}-${Date.now()})
 `;
 
   const remoteImageContents = (imageUrls || []).map(url => ({
@@ -857,11 +807,7 @@ JSON 형식으로만 응답하세요.
 
   try {
     const startTime = Date.now();
-    const result = await runWithTimeout(
-      run(extractorAgent, input),
-      EXTRACTOR_TIMEOUT_MS,
-      'C_Extractor'
-    );
+    const result = await run(extractorAgent, input);
     const duration = Date.now() - startTime;
     logExecutionCheckpoint(runId, 'C_Extractor', `AI Response received in ${duration}ms`);
 
@@ -872,19 +818,15 @@ JSON 형식으로만 응답하세요.
 
   } catch (error) {
     console.error('[Agent] C_Extractor error:', error);
-    if (!ALLOW_FALLBACK) throw error;
 
+    // Fallback
     const fallbackAgent = new Agent({
       name: 'C_Extractor_Fallback',
       model: FALLBACK_MODEL,
       instructions: EXTRACTOR_INSTRUCTIONS,
     });
 
-    const result = await runWithTimeout(
-      run(fallbackAgent, input),
-      EXTRACTOR_TIMEOUT_MS,
-      'C_Extractor_Fallback'
-    );
+    const result = await run(fallbackAgent, input);
 
     const output = result.finalOutput || '';
     return parseJsonResponse<ExtractorOutput>(output);
@@ -907,19 +849,13 @@ export async function runNormalizerAgent(
 
   const input = `다음 추출 데이터를 정규화하세요. JSON 형식으로만 응답하세요:
 
-${JSON.stringify(extractorOutput, null, 2)}
-
-(Normalization Context: ${runId}-${Date.now()})`;
+${JSON.stringify(extractorOutput, null, 2)}`;
 
   logExecutionCheckpoint(runId, 'D_Normalizer', `Sending request to AI (Payload size: ${input.length})...`);
 
   try {
     const startTime = Date.now();
-    const result = await runWithTimeout(
-      run(normalizerAgent, input),
-      DEFAULT_AGENT_TIMEOUT_MS,
-      'D_Normalizer'
-    );
+    const result = await run(normalizerAgent, input);
     const duration = Date.now() - startTime;
     logExecutionCheckpoint(runId, 'D_Normalizer', `AI Response received in ${duration}ms`);
 
@@ -932,19 +868,15 @@ ${JSON.stringify(extractorOutput, null, 2)}
     const errorMsg = error instanceof Error ? error.message : String(error);
     logExecutionCheckpoint(runId, 'D_Normalizer', `ERROR: ${errorMsg}`);
     console.error('[Agent] D_Normalizer error:', error);
-    if (!ALLOW_FALLBACK) throw error;
 
+    // Fallback
     const fallbackAgent = new Agent({
       name: 'D_Normalizer_Fallback',
       model: FALLBACK_MODEL,
       instructions: NORMALIZER_INSTRUCTIONS,
     });
 
-    const result = await runWithTimeout(
-      run(fallbackAgent, input),
-      DEFAULT_AGENT_TIMEOUT_MS,
-      'D_Normalizer_Fallback'
-    );
+    const result = await run(fallbackAgent, input);
 
     const output = result.finalOutput || '';
     return parseJsonResponse<NormalizedDoc>(output);
@@ -969,16 +901,10 @@ export async function runAnalystAgent(
 ${JSON.stringify({
     normalized_doc: normalizedDoc,
     validation_report: validationReport
-  }, null, 2)}
-
-(Insight Context: ${Date.now()})`;
+  }, null, 2)}`;
 
   try {
-    const result = await runWithTimeout(
-      run(analystAgent, input),
-      DEFAULT_AGENT_TIMEOUT_MS,
-      'INS_Analyst'
-    );
+    const result = await run(analystAgent, input);
 
     const output = result.finalOutput || '';
     const answerSet = parseJsonResponse<InsightsAnswerSet>(output);
@@ -987,19 +913,15 @@ ${JSON.stringify({
 
   } catch (error) {
     console.error('[Agent] INS_Analyst error:', error);
-    if (!ALLOW_FALLBACK) throw error;
 
+    // Fallback
     const fallbackAgent = new Agent({
       name: 'INS_Analyst_Fallback',
       model: FALLBACK_MODEL,
       instructions: ANALYST_INSTRUCTIONS,
     });
 
-    const result = await runWithTimeout(
-      run(fallbackAgent, input),
-      DEFAULT_AGENT_TIMEOUT_MS,
-      'INS_Analyst_Fallback'
-    );
+    const result = await run(fallbackAgent, input);
 
     const output = result.finalOutput || '';
     return parseJsonResponse<InsightsAnswerSet>(output);
