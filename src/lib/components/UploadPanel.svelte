@@ -166,10 +166,8 @@
   async function handleFileChange(e: Event) {
     const input = e.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      const combined = files
-        ? [...Array.from(files), ...Array.from(input.files)]
-        : Array.from(input.files);
-      await processAndSetFiles(combined);
+      // Replace existing files with new selection
+      await processAndSetFiles(input.files);
       input.value = ""; // Clear for next selection
     }
   }
