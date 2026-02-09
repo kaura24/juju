@@ -33,6 +33,8 @@
   ) {
     const { runId, mode } = event.detail;
 
+    console.log(`[Home] New run created: ${runId}, mode: ${mode}`);
+
     // 실행 시작 (모드 전달)
     await fetch(`/api/runs/${runId}/execute`, {
       method: "POST",
@@ -40,8 +42,8 @@
       body: JSON.stringify({ mode }),
     });
 
-    // 상세 페이지로 이동
-    goto(`/runs/${runId}`);
+    // 상세 페이지로 이동 (강제 전체 리로드로 캐시 문제 방지)
+    window.location.href = `/runs/${runId}`;
   }
 
   function formatTime(dateStr: string): string {
