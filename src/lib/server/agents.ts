@@ -752,7 +752,7 @@ export async function runGatekeeperAgent(
         ...remoteImageContents,
         {
           type: 'input_text' as const,
-          text: '이 문서(모든 페이지)를 분석해주세요. JSON 형식으로만 응답하세요.',
+          text: `이 문서(모든 페이지)를 분석해주세요. JSON 형식으로만 응답하세요.\n(Analysis Context: ${runId}-${Date.now()})`,
         },
       ],
     },
@@ -821,6 +821,7 @@ export async function runExtractorAgent(
 
 위 평가를 참고하여 모든 페이지에서 주주 정보를 추출하세요.
 JSON 형식으로만 응답하세요.
+(Extraction Context: ${runId}-${Date.now()})
 `;
 
   const remoteImageContents = (imageUrls || []).map(url => ({
@@ -906,7 +907,9 @@ export async function runNormalizerAgent(
 
   const input = `다음 추출 데이터를 정규화하세요. JSON 형식으로만 응답하세요:
 
-${JSON.stringify(extractorOutput, null, 2)}`;
+${JSON.stringify(extractorOutput, null, 2)}
+
+(Normalization Context: ${runId}-${Date.now()})`;
 
   logExecutionCheckpoint(runId, 'D_Normalizer', `Sending request to AI (Payload size: ${input.length})...`);
 
@@ -966,7 +969,9 @@ export async function runAnalystAgent(
 ${JSON.stringify({
     normalized_doc: normalizedDoc,
     validation_report: validationReport
-  }, null, 2)}`;
+  }, null, 2)}
+
+(Insight Context: ${Date.now()})`;
 
   try {
     const result = await runWithTimeout(

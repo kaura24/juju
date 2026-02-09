@@ -114,6 +114,12 @@ export const POST: RequestHandler = async ({ request, platform }) => {
         modeFromForm: mode,
         timestamp: new Date().toISOString()
       }
+    }, {
+      headers: {
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
 
   } catch (error) {

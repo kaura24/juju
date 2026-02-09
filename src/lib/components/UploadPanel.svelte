@@ -188,7 +188,8 @@
       }
       formData.append("mode", mode);
 
-      const response = await fetch("/api/runs", {
+      // Add timestamp to prevent browser caching of POST requests
+      const response = await fetch(`/api/runs?t=${Date.now()}`, {
         method: "POST",
         body: formData,
       });
