@@ -307,7 +307,29 @@
 <main class="page-container">
   <!-- Navigation Bar -->
   <nav class="nav-bar">
-    <a href="/" class="home-btn">← Home</a>
+    <button
+      type="button"
+      class="home-btn"
+      onclick={() => {
+        // 1. SSE 연결 해제
+        eventSource?.close();
+        if (pollInterval) clearInterval(pollInterval);
+
+        // 2. 세션 스토리지 초기화
+        sessionStorage.removeItem("currentRunId");
+        sessionStorage.removeItem("lastAnalysisResult");
+
+        // 3. 디버그 패널 초기화
+        if ((window as any).__JUJU_DEBUG__) {
+          (window as any).__JUJU_DEBUG__.clear?.();
+        }
+
+        dlog("info", "Session cleared, navigating home");
+
+        // 4. 홈으로 이동
+        window.location.href = "/";
+      }}>← Home</button
+    >
     <span class="run-id">#{runId?.slice(0, 8)}</span>
   </nav>
 
@@ -365,11 +387,15 @@
   }
 
   .home-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
     text-decoration: none;
     color: var(--fluent-text-secondary);
     font-size: 0.9rem;
     font-weight: 500;
     transition: color 0.2s;
+    padding: 0;
   }
 
   .home-btn:hover {

@@ -147,3 +147,53 @@ export function getRawFileUrl(path: string) {
 
     return data.publicUrl;
 }
+
+/**
+ * 특정 폴더 내의 모든 파일을 삭제합니다.
+ * @param folder 삭제할 폴더 (예: 'runs', 'events')
+ * @returns 삭제된 파일 수
+ */
+export async function deleteAllInFolder(folder: string): Promise<number> {
+    try {
+        // 먼저 폴더 내 파일 목록 가져오기
+        const { data: files, error: listError } = await supabase.storage
+            .from('juju-data')
+            .list(folder, { limit: 1000 });
+
+        if (listError) {
+            console.error(`[SupabaseStorage] List Error in ${folder}:`, listError);
+            return 0;
+        }
+
+        if (!files || files.length === 0) {
+            console.log(`[SupabaseStorage] No files in ${folder}`);
+            return 0;
+        }
+
+        // 파일들 삭제
+        const filePaths = files.map(file => `${folder}/${file.name}`);
+        const { error: deleteError } = await supabase.storage
+            .from('juju-data')
+            .remove(filePaths);
+
+        if (deleteError) {
+            console.error(`[SupabaseStorage] Delete Error in ${folder}:`, deleteError);
+            return 0;
+        }
+
+        console.log(`[SupabaseStorage] Deleted ${filePaths.length} files from ${folder}`);
+        return filePaths.length;
+    } catch (e) {
+        console.error(`[SupabaseStorage] deleteAllInFolder error:`, e);
+        return 0;
+    }
+}
+
+/**
+ * uploads 폴더의 모든 파일을 삭제합니다.
+ * @returns 삭제된 파일 수
+ */
+export async function deleteAllUploads(): Promise<number> {
+    return await deleteAllInFolder('uploads');
+}
+

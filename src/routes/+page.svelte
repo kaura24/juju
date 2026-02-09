@@ -95,8 +95,27 @@
     }
   }
 
+  /**
+   * 세션 초기화 - 홈 진입 시 이전 분석 컨텍스트 클리어
+   */
+  function clearPreviousSession() {
+    // 1. SessionStorage/LocalStorage에서 이전 run 관련 데이터 제거
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("currentRunId");
+      sessionStorage.removeItem("lastAnalysisResult");
+
+      // 2. 디버그 패널 로그 초기화
+      if ((window as any).__JUJU_DEBUG__) {
+        (window as any).__JUJU_DEBUG__.clear?.();
+      }
+
+      console.log("[Home] Previous session cleared");
+    }
+  }
+
   // 페이지 로드 시 실행
   $effect(() => {
+    clearPreviousSession(); // 세션 초기화
     loadRuns();
     loadSystemStatus();
   });
@@ -176,6 +195,39 @@
 
   <!-- Footer -->
   <footer class="footer">
+    <button
+      type="button"
+      class="reset-storage-btn"
+      onclick={async () => {
+        if (
+          !confirm(
+            "⚠️ 모든 분석 기록과 업로드된 파일이 삭제됩니다.\n정말 초기화하시겠습니까?",
+          )
+        )
+          return;
+
+        try {
+          const response = await fetch("/api/storage/reset", {
+            method: "POST",
+          });
+          const result = await response.json();
+
+          if (response.ok) {
+            alert(
+              `✅ 저장소 초기화 완료\n삭제된 파일: ${result.deletedFiles}개`,
+            );
+            recentRuns = [];
+          } else {
+            alert("❌ 초기화 실패: " + (result.error || "Unknown error"));
+          }
+        } catch (e) {
+          alert(
+            "❌ 초기화 실패: " +
+              (e instanceof Error ? e.message : "Network error"),
+          );
+        }
+      }}>🗑️ 저장소 초기화</button
+    >
     <p>Powered by OpenAI Agents SDK · GPT-4o</p>
   </footer>
 </main>
@@ -434,5 +486,23 @@
     font-size: 12px;
     color: var(--fluent-text-tertiary);
     margin: 0;
+  }
+
+  .reset-storage-btn {
+    padding: 8px 16px;
+    margin-bottom: 16px;
+    background: rgba(220, 53, 69, 0.1);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 8px;
+    color: #dc3545;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .reset-storage-btn:hover {
+    background: rgba(220, 53, 69, 0.2);
+    border-color: #dc3545;
   }
 </style>

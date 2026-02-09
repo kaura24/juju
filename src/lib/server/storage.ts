@@ -37,10 +37,10 @@ import { config } from 'dotenv';
 config();
 
 // detect if running on Vercel or explicitly enabled via env
-const USE_SUPABASE = process.env.VERCEL === '1' || 
-                      process.env.VERCEL === 'true' || 
-                      process.env.USE_SUPABASE === 'true' ||
-                      process.env.USE_SUPABASE === '1';
+const USE_SUPABASE = process.env.VERCEL === '1' ||
+  process.env.VERCEL === 'true' ||
+  process.env.USE_SUPABASE === 'true' ||
+  process.env.USE_SUPABASE === '1';
 
 console.log('[Storage] USE_SUPABASE:', USE_SUPABASE, '(env:', process.env.USE_SUPABASE, ')');
 
@@ -426,3 +426,50 @@ export async function resolveHITLPacket(
 
   await _save(DIRS.hitl, packetId, packet);
 }
+
+// ============================================
+// 저장소 전체 초기화
+// ============================================
+
+/**
+ * 모든 Run 및 관련 데이터 삭제
+ * - runs, events, artifacts, hitl, logs 폴더 내 모든 JSON 삭제
+ * - uploads 폴더 내 모든 이미지 삭제
+ */
+export async function clearAllRuns(): Promise<{ deletedRuns: number; deletedFiles: number }> {
+  console.log('[Storage] clearAllRuns: Starting full storage reset...');
+
+  let deletedRuns = 0;
+  let deletedFiles = 0;
+
+  if (!USE_SUPABASE) {
+    throw new Error('[Storage] USE_SUPABASE=false. Cannot clear storage.');
+  }
+
+  try {
+    const { deleteAllInFolder, deleteAllUploads } = await import('./services/supabase_storage');
+
+    // 1. 각 폴더의 JSON 파일들 삭제
+    const folders = [DIRS.runs, DIRS.events, DIRS.artifacts, DIRS.hitl, LOG_DIR];
+
+    for (const folder of folders) {
+      const count = await deleteAllInFolder(folder);
+      deletedFiles += count;
+      if (folder === DIRS.runs) deletedRuns = count;
+      console.log(`[Storage] Deleted ${count} files from ${folder}`);
+    }
+
+    // 2. uploads 폴더의 이미지 파일들 삭제
+    const uploadCount = await deleteAllUploads();
+    deletedFiles += uploadCount;
+    console.log(`[Storage] Deleted ${uploadCount} uploaded files`);
+
+  } catch (e) {
+    console.error('[Storage] clearAllRuns failed:', e);
+    throw e;
+  }
+
+  console.log(`[Storage] clearAllRuns completed: ${deletedRuns} runs, ${deletedFiles} total files`);
+  return { deletedRuns, deletedFiles };
+}
+
