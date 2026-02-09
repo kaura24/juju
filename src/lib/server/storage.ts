@@ -464,6 +464,11 @@ export async function clearAllRuns(): Promise<{ deletedRuns: number; deletedFile
     deletedFiles += uploadCount;
     console.log(`[Storage] Deleted ${uploadCount} uploaded files`);
 
+    // 3. 세션 잠금 강제 해제
+    const { forceReleaseLock } = await import('./sessionLock');
+    await forceReleaseLock();
+    console.log('[Storage] Session lock force released');
+
   } catch (e) {
     console.error('[Storage] clearAllRuns failed:', e);
     throw e;

@@ -42,7 +42,8 @@
 
     for (let i = 1; i <= maxPages; i++) {
       const page = await pdf.getPage(i);
-      const viewport = page.getViewport({ scale: 2.0 });
+      // Reduce scale for faster upload (1.5 is sufficient for OCR)
+      const viewport = page.getViewport({ scale: 1.5 });
 
       const canvas = document.createElement("canvas");
       const context = canvas.getContext("2d");
@@ -55,8 +56,8 @@
           viewport: viewport,
         }).promise;
 
-        const blob = await new Promise<Blob | null>((resolve) =>
-          canvas.toBlob(resolve, "image/jpeg", 0.9),
+        const blob = await new Promise<Blob | null>(
+          (resolve) => canvas.toBlob(resolve, "image/jpeg", 0.8), // Quality 0.8 is good balance
         );
 
         if (blob) {
