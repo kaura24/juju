@@ -36,7 +36,7 @@
                 // 활성 상태인 런만 필터링 (완료된 것은 제외)
                 // 모니터 모드는 현재 진행 중인 작업을 보여주는 것이 목적
                 runs = data.runs.filter((r: any) =>
-                    ["running", "loading", "pending", "hitl"].includes(
+                    ["running", "loading", "pending", "queued", "hitl"].includes(
                         r.status,
                     ),
                 );
@@ -86,7 +86,7 @@
                 scheduleAutoAdvance();
             } else {
                 // 진행 중인 경우 SSE 연결
-                status = "running";
+                status = runStatus === "queued" ? "waiting" : "running";
                 if (runStatus === "hitl") status = "hitl";
                 connectSSE(runId);
             }

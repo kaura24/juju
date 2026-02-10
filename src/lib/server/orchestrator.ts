@@ -49,6 +49,7 @@ import type {
 import { detectIdentifierType } from '$lib/types';
 import { validateNormalized } from '../validator/ruleEngine';
 import { calculateEffectiveRatios } from './logic/ownership';
+import { detectEnvironment } from './envCheck';
 
 // ============================================
 // 이미지 로딩 유틸리티
@@ -69,7 +70,11 @@ async function loadImageAsBase64(filePath: string): Promise<{ base64: string; mi
 /**
  * 이미지를 Supabase Storage에 업로드하고 Public URL 배열을 반환합니다.
  */
-async function uploadImagesToSupabase(runId: string, images: { base64: string; mimeType: string }[]): Promise<string[]> {
+async function uploadImagesToSupabase(
+  runId: string,
+  images: { base64: string; mimeType: string }[],
+  requireUpload: boolean
+): Promise<string[]> {
   const { env } = await import('$env/dynamic/private');
   const hasServiceKey = !!env.SUPABASE_SERVICE_KEY;
   const hasAnonKey = !!env.SUPABASE_ANON_KEY;
@@ -80,6 +85,9 @@ async function uploadImagesToSupabase(runId: string, images: { base64: string; m
       'uploadImagesToSupabase',
       `Supabase config missing. URL=${!!env.SUPABASE_URL}, SERVICE_KEY=${hasServiceKey}, ANON_KEY=${hasAnonKey}. Skipping upload.`
     );
+    if (requireUpload) {
+      throw new Error('Supabase 설정이 누락되어 서버리스 환경에서 실행할 수 없습니다.');
+    }
     return [];
   }
 
@@ -256,6 +264,17 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     const run = await getRun(runId);
     if (!run || run.files.length === 0) throw new Error('No files to process');
 
+    const envInfo = detectEnvironment();
+    const isServerless = envInfo.platform !== 'local';
+
+    // 서버리스에서는 원격 URL만 허용
+    if (isServerless) {
+      const nonUrl = run.files.find(p => !p.startsWith('http://') && !p.startsWith('https://'));
+      if (nonUrl) {
+        throw new Error('서버리스 환경에서는 원격 URL 파일만 처리 가능합니다.');
+      }
+    }
+
     const { prepareImagesForAnalysis } = await import('./services/converter');
 
     // Process all files to collect all pages/images
@@ -276,7 +295,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
     await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
     logExecutionCheckpoint(runId, 'executeRun', `Uploading images to Supabase...`);
-    const imageUrls = await uploadImagesToSupabase(runId, images);
+    const imageUrls = await uploadImagesToSupabase(runId, images, isServerless);
     logExecutionCheckpoint(runId, 'executeRun', `Supabase upload done. URLs: ${imageUrls.length}`);
 
     const { updateRunStorageProvider } = await import('./storage');
@@ -286,6 +305,10 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     } else {
       await updateRunStorageProvider(runId, 'LOCAL');
       await addAgentLog(runId, 'Orchestrator', 'WARNING', '이미지 업로드 건너뜀', 'Supabase 설정이 되어있지 않아 로컬 데이터로 분석을 계속합니다 (로컬 모드)');
+    }
+
+    if (isServerless && imageUrls.length === 0) {
+      throw new Error('서버리스 환경에서는 이미지 업로드가 필수입니다.');
     }
 
     let normalizedDoc: NormalizedDoc | null = null;
@@ -838,8 +861,8 @@ async function runStageB(
   await saveStageEvent(runId, stageEvent);
   emitStageEvent(runId, stageEvent);
 
-  // REJECT 처리
-  if (assessment.route_suggestion === 'REJECT') {
+  // REJECT 처리 (엄격 조건: 명확히 주주명부가 아님)
+  if (assessment.route_suggestion === 'REJECT' && assessment.is_shareholder_register === 'NO') {
     addAgentLog(runId, 'B_Gatekeeper', 'WARNING', '문서 거부',
       '이 문서는 주주명부로 인식되지 않습니다', undefined, Date.now() - stageStart);
     completeAgentLog(runId, 'B_Gatekeeper', 'FAILED', '문서가 주주명부가 아니거나 처리할 수 없습니다');

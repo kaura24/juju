@@ -73,7 +73,7 @@ export interface OrchestratorSummary {
 // 로그 저장소 (In-Memory)
 // ============================================
 import { saveRunLog, loadRunLog } from './storage';
-import { appendFile } from 'fs/promises';
+import { appendFile, mkdir } from 'fs/promises';
 import { join } from 'path';
 
 import os from 'os';
@@ -129,9 +129,14 @@ export async function initRunLog(runId: string): Promise<RunLogReport> {
  * 에이전트 로그 컬렉션 시작
  */
 export async function startAgentLog(runId: string, agent: AgentName): Promise<AgentLogCollection> {
-  const report = runLogs.get(runId);
+  let report = runLogs.get(runId);
   if (!report) {
-    throw new Error(`Run ${runId} not found`);
+    report = (await loadRunLog(runId)) || undefined;
+    if (report) runLogs.set(runId, report);
+  }
+  if (!report) {
+    // HMR/서버리스 재기동 등으로 캐시가 사라진 경우 복구
+    report = await initRunLog(runId);
   }
 
   const collection: AgentLogCollection = {
@@ -193,6 +198,7 @@ export async function addAgentLog(
   if (level === 'ERROR') {
     try {
       const errorMsg = `[${entry.timestamp}] [${runId}] [${agent}] [${action}] ${detail}\n`;
+      await mkdir(join(BASE_DIR, 'logs'), { recursive: true });
       await appendFile(ERROR_LOG_PATH, errorMsg, 'utf-8');
     } catch (err) {
       console.error('Failed to write to server_error.log', err);

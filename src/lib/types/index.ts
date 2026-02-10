@@ -440,7 +440,7 @@ export interface InsightsAnswerSet {
 // Stage Event (타임라인 단위)
 // ============================================
 
-export type StageName = 'B' | 'C' | 'D' | 'E' | 'INSIGHTS' | 'FastExtractor' | 'FAST';
+export type StageName = 'QUEUE' | 'B' | 'C' | 'D' | 'E' | 'INSIGHTS' | 'FastExtractor' | 'FAST';
 export type NextAction = 'AUTO_NEXT' | 'AUTO_RETRY' | 'HITL' | 'REJECT';
 
 export interface StageEvent {
@@ -517,7 +517,7 @@ export interface HITLPacket {
 // Run (실행 상태)
 // ============================================
 
-export type RunStatus = 'pending' | 'running' | 'completed' | 'hitl' | 'rejected' | 'error';
+export type RunStatus = 'pending' | 'queued' | 'running' | 'completed' | 'hitl' | 'rejected' | 'error';
 
 export interface Run {
   id: string;

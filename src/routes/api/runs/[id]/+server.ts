@@ -20,7 +20,7 @@ export const GET: RequestHandler = async ({ params }) => {
     const hitlPacket = await getHITLPacketByRunId(runId);
 
     // Self-heal: if results exist but status is still running/pending, finalize
-    if (run.status === 'running' || run.status === 'pending') {
+    if (run.status === 'running' || run.status === 'pending' || run.status === 'queued') {
       const fastAnswer = await getArtifact(runId, 'FAST', 'answer_set');
       const insightsAnswer = await getArtifact(runId, 'INSIGHTS', 'answer_set');
       if (fastAnswer || insightsAnswer) {

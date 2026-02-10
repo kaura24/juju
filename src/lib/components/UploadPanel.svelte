@@ -214,6 +214,10 @@
       // Artificial delay for UX (to show the "success/navigating" state)
       setTimeout(() => {
         dispatch("uploaded", { runId, mode });
+        // Fallback: if parent handler fails, navigate directly
+        if (typeof window !== "undefined") {
+          window.location.href = `/runs/${runId}`;
+        }
       }, 1200);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {

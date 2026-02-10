@@ -36,11 +36,15 @@
     console.log(`[Home] New run created: ${runId}, mode: ${mode}`);
 
     // 실행 시작 (모드 전달)
-    await fetch(`/api/runs/${runId}/execute`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ mode }),
-    });
+    try {
+      await fetch(`/api/runs/${runId}/execute`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode }),
+      });
+    } catch (error) {
+      console.warn("[Home] Execute request failed, navigating anyway", error);
+    }
 
     // 상세 페이지로 이동 (강제 전체 리로드로 캐시 문제 방지)
     window.location.href = `/runs/${runId}`;

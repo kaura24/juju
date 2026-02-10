@@ -149,6 +149,61 @@ SUPABASE_ANON_KEY="your-anon-key"              # Fallback (권장하지 않음)
 
 ---
 
+## ✅ Vercel 배포용 운영 가이드
+서버리스 제약을 고려한 **운영 표준 절차**입니다.
+
+### 1) 필수 환경변수 (Vercel)
+- `OPENAI_API_KEY`
+- `SUPABASE_URL`
+- `SUPABASE_SERVICE_KEY` (권장/필수)
+- `SUPABASE_ANON_KEY` (보조)
+- `ALLOW_INLINE_EXECUTION=false` (서버리스 인라인 실행 금지)
+
+### 2) Supabase 스토리지 구성
+- **Buckets**
+  - `juju-images-public` (Public)
+  - `juju-data` (Private)
+- **RLS 정책**
+  - `supabase_setup.sql` 실행
+  - Service Role 키 사용 권장 (RLS 오류 방지)
+
+### 3) 실행 방식 (중요)
+- **Vercel에서는 즉시 실행이 금지됩니다.**
+  - `/api/runs` 생성 → `queued` 상태
+  - `/api/runs/:id/execute` → 202 응답, **외부 워커가 실행**
+- **외부 워커 필요**
+  - 큐 폴링 후 `executeRun` 호출
+  - PDF/이미지 변환은 워커에서만 수행 (serverless에서 spawn 불가)
+
+### 4) 제한 사항
+- **타임아웃 60초**
+- **/tmp만 쓰기 가능**
+- **Child process spawn 제한**
+- **대용량 PDF 변환은 워커 필수**
+
+### 5) 운영 체크리스트
+- 배포 전:
+  - 환경변수 모두 설정 확인
+  - Supabase 버킷/정책 확인
+  - 워커 정상 동작 확인
+- 배포 후:
+  - `/api/runs` → `queued` 상태 확인
+  - 워커가 `running → completed`로 전환하는지 확인
+  - Supabase Storage 업로드 정상 여부 확인
+
+### 6) 장애 대응 가이드
+- **Supabase 업로드 실패**
+  - Service Role Key 누락 여부 확인
+  - Storage 권한/버킷 상태 확인
+- **PDF 변환 실패**
+  - 워커 환경에서만 수행되는지 확인
+  - 서버리스에서는 변환 차단됨 (정상)
+- **Run이 멈춤(queued 유지)**
+  - 워커 실행 여부 확인
+  - 큐 폴링 로직/스케줄 상태 확인
+
+---
+
 ## 🏗️ 아키텍처 및 설계 철학 (Architecture & Philosophy)
 
 ### 🚨 Zero Tolerance Data Integrity Policy (무관용 데이터 원칙)

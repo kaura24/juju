@@ -6,8 +6,8 @@
 
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { createRun, saveFile, listRuns } from '$lib/server/storage';
-import { executeRun } from '$lib/server/orchestrator';
+import { createRun, saveFile, listRuns, updateRunStatus } from '$lib/server/storage';
+import { detectEnvironmentAsync } from '$lib/server/envCheck';
 
 export const POST: RequestHandler = async ({ request, platform }) => {
   try {
@@ -59,26 +59,13 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     // Run 생성
     const run = await createRun(filePaths, mode, fileMetadata);
 
-    // [FIX] Trigger execution immediately on the same instance to avoid Vercel FS isolation issues
-    // This allows the run to start even if the subsequent /execute request hits a different instance
-    console.log(`[API] Triggering execution for run ${run.id} with mode: ${run.execution_mode || 'MULTI_AGENT (default)'}`);
-
-    const executionPromise = executeRun(run.id, run.execution_mode).catch(err => {
-      console.error(`[API] Background execution error for run ${run.id}:`, err);
-    });
-
-    if ((platform as any)?.waitUntil) {
-      console.log(`[API] Using platform.waitUntil for run ${run.id}`);
-      (platform as any).waitUntil(executionPromise);
+    // 서버리스 환경에서는 즉시 실행하지 않고 큐 상태로만 등록
+    const envInfo = await detectEnvironmentAsync();
+    if (envInfo.platform !== 'local') {
+      await updateRunStatus(run.id, 'queued', 'QUEUE');
+      console.log(`[API] Run queued for serverless execution: ${run.id}`);
     } else {
-      const isDev = process.env.NODE_ENV !== 'production';
-      if (isDev) {
-        console.warn(`[API] platform.waitUntil not available, executing in background for run ${run.id} (dev mode)`);
-      } else {
-        console.warn(`[API] platform.waitUntil not available, executing synchronously for run ${run.id}`);
-        // Fallback: run synchronously so Vercel doesn't drop the background task
-        await executionPromise;
-      }
+      await updateRunStatus(run.id, 'pending');
     }
 
     return json({
@@ -89,6 +76,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
         hasWaitUntil: !!((platform as any)?.waitUntil),
         executionMode: run.execution_mode,
         modeFromForm: mode,
+        envPlatform: envInfo.platform,
         timestamp: new Date().toISOString()
       }
     });

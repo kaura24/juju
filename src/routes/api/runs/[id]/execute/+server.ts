@@ -6,6 +6,8 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getRun } from '$lib/server/storage';
 import { executeRun } from '$lib/server/orchestrator';
+import { updateRunStatus } from '$lib/server/storage';
+import { detectEnvironmentAsync } from '$lib/server/envCheck';
 
 export const config = {
   maxDuration: 60
@@ -41,13 +43,25 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
     const mode = body.mode || run.execution_mode || 'MULTI_AGENT';
     console.log(`[API-DEBUG] Selected mode for run ${runId}: ${mode} (from Body: ${body.mode}, from Run: ${run.execution_mode})`);
 
+    const envInfo = await detectEnvironmentAsync();
+    const allowInline = process.env.ALLOW_INLINE_EXECUTION === 'true';
+
+    if (envInfo.platform !== 'local' && !allowInline) {
+      await updateRunStatus(runId, 'queued', 'QUEUE');
+      return json({
+        success: true,
+        message: '서버리스 환경에서는 외부 워커에서 실행됩니다.',
+        runId,
+        queued: true
+      }, { status: 202 });
+    }
+
     // 백그라운드에서 실행 (즉시 응답)
     console.log(`[API-EXECUTE] Triggering execution for run ${runId} with mode ${mode}`);
     const executionPromise = executeRun(runId, mode).catch(error => {
       console.error(`[API-EXECUTE] Background execution error for run ${runId}:`, error);
     });
 
-    // Vercel에서 백그라운드 프로세스가 죽지 않도록 대기 요청
     if ((platform as any)?.waitUntil) {
       console.log(`[API-EXECUTE] Using platform.waitUntil for run ${runId}`);
       (platform as any).waitUntil(executionPromise);

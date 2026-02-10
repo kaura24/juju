@@ -88,8 +88,9 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
 
 ## 판정 기준
 1. is_shareholder_register:
-   - YES: 명확히 주주/출자자 명부 형식이며, **모든 주주에 대해** 성명과 식별정보가 1:1로 매칭되어 존재함
-   - NO: 다른 문서이거나, 주주명은 있으나 식별정보가 누락된 주주가 존재하는 경우 (1:1 매칭이 깨진 경우)
+   - YES: 주주/출자자 명부 형식이 명확히 보이면 YES
+     - **식별정보가 일부 누락되어도 YES로 판정**하고, has_required_info에서 부족함을 표시할 것
+   - NO: 주주명부가 아닌 다른 문서임이 명확한 경우에만 NO
    - UNKNOWN: 판단 불가
 
 2. has_required_info:
@@ -127,6 +128,10 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
   ],
   "route_suggestion": "EXTRACT" | "REQUEST_MORE_INPUT" | "HITL_TRIAGE" | "REJECT"
 }
+
+## 라우팅 규칙 (중요)
+- is_shareholder_register=YES인데 필수 정보가 부족하면 HITL_TRIAGE 또는 REQUEST_MORE_INPUT
+- is_shareholder_register=NO일 때만 REJECT 사용
 
 ## 금지
 - 주주 정보를 추출하지 마세요 (C단계 역할)

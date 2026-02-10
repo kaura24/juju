@@ -47,6 +47,12 @@
         })(),
     );
 
+    let isResultReady = $derived(
+        (() => {
+            return !!finalAnswer;
+        })(),
+    );
+
     function formatEntityType(entity_type: string): string {
         switch (entity_type) {
             case "INDIVIDUAL":
@@ -94,7 +100,12 @@
                         <span class="icon">⚙️</span>
                         <span class="label">분석 진행 중</span>
                     </div>
-                {:else if status === "completed"}
+                {:else if (status === "pending" || status === "queued") && !finalAnswer}
+                    <div class="status-badge bg-blue-500">
+                        <span class="icon">⏳</span>
+                        <span class="label">대기 중</span>
+                    </div>
+                {:else if status === "completed" || (isResultReady && status !== "error" && status !== "rejected")}
                     <div class="status-badge bg-emerald-500">
                         <span class="icon">✅</span>
                         <span class="label">분석 완료</span>
@@ -114,7 +125,7 @@
                 {/if}
 
                 <!-- Pass/Fail Badge -->
-                {#if status === "completed" && finalAnswer?.validation_summary?.decidability}
+                {#if finalAnswer?.validation_summary?.decidability}
                     {#if finalAnswer.validation_summary.decidability.is_decidable}
                         <div class="result-badge pass">
                             <span class="icon">✨</span> AI 심사 통과
@@ -145,6 +156,15 @@
                 <button class="stop-btn" onclick={handleForceStop}
                     >강제 중단</button
                 >
+            </div>
+        {:else if (status === "pending" || status === "queued") && !finalAnswer}
+            <div class="running-box">
+                <div class="dot-pulse">
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                    <div class="dot"></div>
+                </div>
+                <p>분석 대기 중입니다. 곧 시작됩니다...</p>
             </div>
         {:else if status === "rejected"}
             <div class="message-box error">
@@ -329,7 +349,7 @@
     {/if}
 
     <!-- Footer Actions -->
-    {#if status !== "running" && status !== "loading"}
+    {#if status !== "running" && status !== "loading" && status !== "queued" && status !== "pending"}
         <div class="actions-footer">
             <a href="/" class="home-btn"><span>🏠</span> 홈으로 가기</a>
         </div>

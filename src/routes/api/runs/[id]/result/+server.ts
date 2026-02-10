@@ -5,7 +5,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getRun, getArtifact } from '$lib/server/storage';
-import type { InsightsAnswerSet } from '$lib/types';
+import type { InsightsAnswerSet, DocumentAssessment } from '$lib/types';
 
 export const GET: RequestHandler = async ({ params }) => {
   try {
@@ -16,8 +16,31 @@ export const GET: RequestHandler = async ({ params }) => {
       return json({ error: 'Run not found' }, { status: 404 });
     }
     
+    if (run.status === 'rejected') {
+      const assessment = await getArtifact<DocumentAssessment>(runId, 'B', 'assessment');
+      return json({
+        runId,
+        status: 'rejected',
+        reason: assessment
+          ? {
+              is_shareholder_register: assessment.is_shareholder_register,
+              has_required_info: assessment.has_required_info,
+              detected_document_type: assessment.detected_document_type,
+              detected_ownership_basis: assessment.detected_ownership_basis,
+              document_info: assessment.document_info,
+              required_fields_present: assessment.required_fields_present,
+              rationale: assessment.rationale,
+              route_suggestion: assessment.route_suggestion,
+              evidence_refs: assessment.evidence_refs
+            }
+          : {
+              message: run.error || 'Rejected without assessment',
+            }
+      }, { status: 200 });
+    }
+
     if (run.status !== 'completed') {
-      return json({ 
+      return json({
         error: `Run is ${run.status}, not completed`,
         status: run.status
       }, { status: 400 });

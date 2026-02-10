@@ -11,6 +11,7 @@ import * as UTIF from 'utif';
 import { spawn } from 'child_process';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { getRuntimeProfile } from '../envCheck';
 
 // Fix for pdfjs-dist in Node.js - set global Image
 if (typeof global !== 'undefined') {
@@ -117,6 +118,11 @@ export async function convertPdfToImagesFromBuffer(
     sourceLabel: string
 ): Promise<{ base64: string; mimeType: string }[]> {
     console.log(`[Converter] Converting PDF via Isolated Process (buffer): ${sourceLabel}`);
+
+    const runtimeProfile = getRuntimeProfile();
+    if (!runtimeProfile.canSpawnProcess) {
+        throw new Error('서버리스 환경에서는 PDF 변환을 지원하지 않습니다. 외부 워커에서 변환 후 업로드하세요.');
+    }
 
     return new Promise((resolve, reject) => {
         const __filename = fileURLToPath(import.meta.url);

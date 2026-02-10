@@ -24,6 +24,7 @@
   let status:
     | "loading"
     | "pending"
+    | "queued"
     | "running"
     | "completed"
     | "hitl"
@@ -74,7 +75,8 @@
         break;
 
       case "log_entry":
-        if (status === "loading" || status === "pending") status = "running";
+        if (status === "loading" || status === "pending" || status === "queued")
+          status = "running";
         logs = [...logs, data.payload];
         break;
 
@@ -150,9 +152,9 @@
         }
       }
 
-      // If still pending, trigger execution (Self-healing for Vercel cold starts/missed triggers)
-      if (data.run.status === "pending") {
-        dlog("poll", "Run is pending, triggering execution...");
+      // If still pending/queued, trigger execution (Self-healing for Vercel cold starts/missed triggers)
+      if (data.run.status === "pending" || data.run.status === "queued") {
+        dlog("poll", "Run is pending/queued, triggering execution...");
         fetch(`/api/runs/${runId}/execute`, { method: "POST" }).catch((err) =>
           dlog("error", "Failed to trigger execution", err),
         );
@@ -231,7 +233,8 @@
       if (
         status === "running" ||
         status === "loading" ||
-        status === "pending"
+        status === "pending" ||
+        status === "queued"
       ) {
         connectSSE();
         startPolling();
