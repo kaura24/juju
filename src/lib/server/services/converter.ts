@@ -227,12 +227,34 @@ async function downloadUrlToBuffer(url: string): Promise<{ buffer: Buffer; conte
  * URL이 입력된 경우 (Vercel 환경), 임시 파일로 다운로드 후 처리
  */
 export async function prepareImagesForAnalysis(filePathOrUrl: string): Promise<{ base64: string; mimeType: string }[]> {
-    if (!filePathOrUrl.startsWith('http://') && !filePathOrUrl.startsWith('https://')) {
-        throw new Error('[Converter] Local file paths are disabled. Expected a remote URL.');
+    console.log(`[Converter] Preparing file: ${filePathOrUrl}`);
+
+    let buffer: Buffer;
+    let contentType: string | null = null;
+    let ext = '';
+
+    if (filePathOrUrl.startsWith('http://') || filePathOrUrl.startsWith('https://')) {
+        const downloaded = await downloadUrlToBuffer(filePathOrUrl);
+        buffer = downloaded.buffer;
+        contentType = downloaded.contentType;
+        ext = downloaded.ext;
+    } else {
+        // Local file handling (e.g., /uploads/xxxx.ext)
+        // Strip out leading slash if needed and construct full path
+        const fs = await import('fs/promises');
+        const path = await import('path');
+        const localRelativePath = filePathOrUrl.startsWith('/') ? filePathOrUrl.substring(1) : filePathOrUrl;
+        const localPath = path.join(process.cwd(), localRelativePath);
+
+        try {
+            buffer = await fs.readFile(localPath);
+            ext = filePathOrUrl.split('.').pop() || '';
+            console.log(`[Converter] Read local file: ${localPath}`);
+        } catch (e: any) {
+            throw new Error(`[Converter] Failed to read local file ${localPath}: ${e.message}`);
+        }
     }
 
-    console.log(`[Converter] Downloading remote file: ${filePathOrUrl}`);
-    const { buffer, contentType, ext } = await downloadUrlToBuffer(filePathOrUrl);
     const normalizedExt = ext.toLowerCase();
     let result: { base64: string; mimeType: string }[] = [];
 

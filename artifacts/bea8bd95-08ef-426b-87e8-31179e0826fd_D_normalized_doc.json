@@ -1,0 +1,95 @@
+{
+  "shareholders": [
+    {
+      "name": "박종국",
+      "entity_type": "INDIVIDUAL",
+      "entity_type_confidence": 1,
+      "entity_signals": {
+        "has_resident_id_pattern": true,
+        "has_birth_date": false,
+        "has_personal_name_format": true,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": false,
+        "has_corporate_prefix_suffix": false,
+        "has_business_reg_number": false,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": false,
+        "identifier_column_header": null
+      },
+      "identifier": "1972-07-23",
+      "identifier_type": "BIRTH_DATE",
+      "shares": 14000,
+      "ratio": 70,
+      "amount": 140000000,
+      "share_class": null,
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "박종국 720723-1626116 서울특별시 송파구 위례광장로 121, 2411동 602호(장지동, 위례24단지아파트) 14,000주 10,000원 140,000,000원",
+          "source": "VISION"
+        }
+      ],
+      "confidence": 1,
+      "unknown_reasons": []
+    },
+    {
+      "name": "김혜정",
+      "entity_type": "INDIVIDUAL",
+      "entity_type_confidence": 1,
+      "entity_signals": {
+        "has_resident_id_pattern": true,
+        "has_birth_date": false,
+        "has_personal_name_format": true,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": false,
+        "has_corporate_prefix_suffix": false,
+        "has_business_reg_number": false,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": false,
+        "identifier_column_header": null
+      },
+      "identifier": "1978-05-18",
+      "identifier_type": "BIRTH_DATE",
+      "shares": 6000,
+      "ratio": 30,
+      "amount": 60000000,
+      "share_class": null,
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "김혜정 780518-2051817 서울특별시 송파구 위례광장로 121, 2411동 602호(장지동, 위례24단지아파트) 6,000주 10,000원 60,000,000원",
+          "source": "VISION"
+        }
+      ],
+      "confidence": 1,
+      "unknown_reasons": []
+    }
+  ],
+  "document_properties": {
+    "company_name": "주식회사 진이앤스",
+    "total_shares_issued": 20000,
+    "total_capital": 200000000,
+    "par_value_per_share": 10000,
+    "document_date": "2026-01-22",
+    "ownership_basis": "SHARE_COUNT",
+    "has_total_row": true,
+    "total_row_values": {
+      "shares": 20000,
+      "ratio": null,
+      "amount": 200000000
+    }
+  },
+  "ordering_detected": "UNKNOWN",
+  "ownership_basis_detected": "SHARE_COUNT",
+  "normalization_notes": [
+    "지분율 자동 계산: 2명 지분율 역산 완료"
+  ]
+}

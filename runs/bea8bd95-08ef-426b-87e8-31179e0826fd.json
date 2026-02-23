@@ -1,0 +1,17 @@
+{
+  "id": "bea8bd95-08ef-426b-87e8-31179e0826fd",
+  "status": "completed",
+  "files": [
+    "/uploads/9d33d94f-1d95-4b3f-8de0-3d64e7ff2013.jpg"
+  ],
+  "execution_mode": "MULTI_AGENT",
+  "file_metadata": {
+    "/uploads/9d33d94f-1d95-4b3f-8de0-3d64e7ff2013.jpg": {
+      "original_name": "주주명부 테스트1.jpg"
+    }
+  },
+  "created_at": "2026-02-23T09:35:04.327Z",
+  "updated_at": "2026-02-23T09:36:44.480Z",
+  "storage_provider": "LOCAL",
+  "current_stage": "INSIGHTS"
+}

@@ -1,0 +1,93 @@
+{
+  "stage_name": "INSIGHTS",
+  "summary": "분석 완료: 25% 이상 주주(김철수(60%))",
+  "rationale": "종합 분석 결과: 정상(정합성 확인됨) - 주식회사 퓨처시스템의 주주명부에 기재된 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계인 10,000주와 일치하여 정합성이 확보됨. 주요 주주인 김철수는 6,000주(60%), 이영희는 2,000주(20%), 주식회사 한빛소프트는 1,500주(15%), 박민수는 500주(5%)를 보유하고 있으며, 이들의 지분율 합계 또한 100%로 검증됨. 본 명부에 따르면, 김철수, 이영희, 주식회사 한빛소프트가 지분율 25% 이상을 보유하고 있어 이들이 실소유주로 확인됨. 데이터 검토 시, 모든 주주에 대한 식별정보가 정확히 기재되어 있어 실소유주 확인에 문제가 없으며, 주주에 대한 누락, 오기, 은폐 가능성은 없을 것으로 판단됨. 따라서 최종 판정은 true 임.",
+  "confidence": 0.5,
+  "outputs": {
+    "document_assessment": {
+      "is_valid_shareholder_register": "YES",
+      "evidence_refs": []
+    },
+    "over_25_percent": [
+      {
+        "name": "김철수",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 0.9,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": true,
+          "identifier_column_header": "주민(사업자)번호"
+        },
+        "identifier": "1975-01-01",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 6000,
+        "ratio": 60,
+        "amount": null,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "김철수 750101-1234567 6,000 60 %",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 0.9,
+        "unknown_reasons": []
+      }
+    ],
+    "ordering_rule": "RATIO_DESC",
+    "totals": {
+      "total_shares_declared": 10000,
+      "total_amount_declared": null
+    },
+    "document_date": "2025-12-05",
+    "document_date_staleness": {
+      "is_stale": false,
+      "days_diff": 51,
+      "threshold_days": 365
+    },
+    "company_name": "주식회사 퓨처시스템",
+    "share_classes_found": [],
+    "trust_level": "HIGH",
+    "cannot_determine": [],
+    "synthesis_reasoning": "주식회사 퓨처시스템의 주주명부에 기재된 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계인 10,000주와 일치하여 정합성이 확보됨. 주요 주주인 김철수는 6,000주(60%), 이영희는 2,000주(20%), 주식회사 한빛소프트는 1,500주(15%), 박민수는 500주(5%)를 보유하고 있으며, 이들의 지분율 합계 또한 100%로 검증됨. 본 명부에 따르면, 김철수, 이영희, 주식회사 한빛소프트가 지분율 25% 이상을 보유하고 있어 이들이 실소유주로 확인됨. 데이터 검토 시, 모든 주주에 대한 식별정보가 정확히 기재되어 있어 실소유주 확인에 문제가 없으며, 주주에 대한 누락, 오기, 은폐 가능성은 없을 것으로 판단됨. 따라서 최종 판정은 true 임.",
+    "synthesis_confidence": 0.5,
+    "validation_summary": {
+      "status": "PASS",
+      "triggers": [],
+      "summary_metrics": {
+        "total_records": 4,
+        "null_shares_count": 0,
+        "null_ratio_count": 0,
+        "null_amount_count": 4,
+        "sum_shares": 10000,
+        "sum_ratio": 100,
+        "sum_amount": null,
+        "has_reference_total": true,
+        "individual_count": 3,
+        "corporate_count": 1,
+        "unknown_entity_count": 0
+      },
+      "data_quality_score": 100,
+      "structural_failures": [],
+      "decidability": {
+        "is_decidable": true,
+        "reason": "주식회사 퓨처시스템의 주주명부에 기재된 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계인 10,000주와 일치하여 정합성이 확보됨. 주요 주주인 김철수는 6,000주(60%), 이영희는 2,000주(20%), 주식회사 한빛소프트는 1,500주(15%), 박민수는 500주(5%)를 보유하고 있으며, 이들의 지분율 합계 또한 100%로 검증됨. 본 명부에 따르면, 김철수, 이영희, 주식회사 한빛소프트가 지분율 25% 이상을 보유하고 있어 이들이 실소유주로 확인됨. 데이터 검토 시, 모든 주주에 대한 식별정보가 정확히 기재되어 있어 실소유주 확인에 문제가 없으며, 주주에 대한 누락, 오기, 은폐 가능성은 없을 것으로 판단됨. 따라서 최종 판정은 true 임."
+      }
+    }
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T09:12:34.422Z"
+}

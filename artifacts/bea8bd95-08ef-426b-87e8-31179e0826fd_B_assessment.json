@@ -1,0 +1,43 @@
+{
+  "is_shareholder_register": "YES",
+  "has_required_info": "YES",
+  "required_fields_present": {
+    "shareholder_names": "YES",
+    "shares_or_ratio": "YES",
+    "ownership_amount": "YES",
+    "total_shares": "YES",
+    "total_capital": "YES",
+    "share_class": "NO",
+    "entity_identifiers": "YES"
+  },
+  "doc_quality": {
+    "readability": "HIGH",
+    "table_structure": "OK",
+    "page_count_guess": 1
+  },
+  "detected_document_type": "주주명부",
+  "detected_ownership_basis": "AMOUNT_KRW",
+  "document_info": {
+    "company_name": "주식회사 진이앤스",
+    "document_date": "2026.01.22"
+  },
+  "rationale": "문서가 주주명부 형식을 갖추고 있으며, 모든 필수 정보(주주 이름, 식별정보, 지분 정보, 회사명, 발행일)가 포함되어 있습니다.",
+  "evidence_refs": [
+    {
+      "page_no": 1,
+      "line_snippet": "주주명부",
+      "source": "VISION"
+    },
+    {
+      "page_no": 1,
+      "line_snippet": "2026. 01. 22",
+      "source": "VISION"
+    },
+    {
+      "page_no": 1,
+      "line_snippet": "주식회사 진이앤스",
+      "source": "VISION"
+    }
+  ],
+  "route_suggestion": "EXTRACT"
+}

@@ -1,0 +1,77 @@
+{
+  "document_assessment": {
+    "is_valid_shareholder_register": "YES",
+    "evidence_refs": []
+  },
+  "over_25_percent": {
+    "UNKNOWN": true,
+    "reason": "제출된 주주명부상 총 발행주식수는 1,000주이나, 개별 주주 보유주식의 합계는 900주로 100주(10.0%)의 차이가 발생함. 또한, 개별 주주 지분율의 합계가 90%로, 100%와 10%p 차이가 발생함. 주요 주주인 김요류(30%), 오계찬(30%), 나머지(30%)의 지분율은 각각 동일하게 30%임. 정합성 검토 결과에 따르면 주식수 및 지분율에서 불일치가 확인되어 실제 소유주를 파악하는 데 어려움이 있음. 세 명의 주주 모두 지분율이 25% 이상이므로, 이들 모두를 실제 소유주로 간주할 수 있음. 하지만 현재 주식수와 지분율 데이터 불일치로 인해 최종적인 소유주 확인에 문제가 있음. 따라서 이 주주명부는 추가 확인이 필요하며, 특히 주식수와 지분율의 정확성에 대한 검토가 요구됨."
+  },
+  "ordering_rule": "UNKNOWN",
+  "totals": {
+    "total_shares_declared": 1000,
+    "total_amount_declared": null
+  },
+  "document_date": "2025-11-05",
+  "document_date_staleness": {
+    "is_stale": false,
+    "days_diff": 81,
+    "threshold_days": 365
+  },
+  "company_name": "주식회사 마스페일",
+  "share_classes_found": [],
+  "trust_level": "HIGH",
+  "cannot_determine": [
+    "종합 분석에서 문서 부적합 판정"
+  ],
+  "synthesis_reasoning": "제출된 주주명부상 총 발행주식수는 1,000주이나, 개별 주주 보유주식의 합계는 900주로 100주(10.0%)의 차이가 발생함. 또한, 개별 주주 지분율의 합계가 90%로, 100%와 10%p 차이가 발생함. 주요 주주인 김요류(30%), 오계찬(30%), 나머지(30%)의 지분율은 각각 동일하게 30%임. 정합성 검토 결과에 따르면 주식수 및 지분율에서 불일치가 확인되어 실제 소유주를 파악하는 데 어려움이 있음. 세 명의 주주 모두 지분율이 25% 이상이므로, 이들 모두를 실제 소유주로 간주할 수 있음. 하지만 현재 주식수와 지분율 데이터 불일치로 인해 최종적인 소유주 확인에 문제가 있음. 따라서 이 주주명부는 추가 확인이 필요하며, 특히 주식수와 지분율의 정확성에 대한 검토가 요구됨.\n\n[정합성 검증 요약]\n- E-SUM-001: 주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이)\n- E-RAT-001: 지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+  "synthesis_confidence": 0.5,
+  "validation_summary": {
+    "status": "NEED_HITL",
+    "triggers": [
+      {
+        "rule_id": "E-SUM-001",
+        "severity": "BLOCKER",
+        "message": "주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이)",
+        "suggestion": "REFERENCE_VALUE_INPUT",
+        "metrics": {
+          "sum_shares": 900,
+          "total_shares_declared": 1000,
+          "diff_percent": "10.00"
+        }
+      },
+      {
+        "rule_id": "E-RAT-001",
+        "severity": "BLOCKER",
+        "message": "지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+        "suggestion": "MANUAL_CORRECTION",
+        "metrics": {
+          "sum_ratio": 90,
+          "coverage": 1
+        }
+      }
+    ],
+    "summary_metrics": {
+      "total_records": 3,
+      "null_shares_count": 0,
+      "null_ratio_count": 0,
+      "null_amount_count": 3,
+      "sum_shares": 900,
+      "sum_ratio": 90,
+      "sum_amount": null,
+      "has_reference_total": true,
+      "individual_count": 3,
+      "corporate_count": 0,
+      "unknown_entity_count": 0
+    },
+    "data_quality_score": 80,
+    "structural_failures": [
+      "E-SUM-001",
+      "E-RAT-001"
+    ],
+    "decidability": {
+      "is_decidable": false,
+      "reason": "제출된 주주명부상 총 발행주식수는 1,000주이나, 개별 주주 보유주식의 합계는 900주로 100주(10.0%)의 차이가 발생함. 또한, 개별 주주 지분율의 합계가 90%로, 100%와 10%p 차이가 발생함. 주요 주주인 김요류(30%), 오계찬(30%), 나머지(30%)의 지분율은 각각 동일하게 30%임. 정합성 검토 결과에 따르면 주식수 및 지분율에서 불일치가 확인되어 실제 소유주를 파악하는 데 어려움이 있음. 세 명의 주주 모두 지분율이 25% 이상이므로, 이들 모두를 실제 소유주로 간주할 수 있음. 하지만 현재 주식수와 지분율 데이터 불일치로 인해 최종적인 소유주 확인에 문제가 있음. 따라서 이 주주명부는 추가 확인이 필요하며, 특히 주식수와 지분율의 정확성에 대한 검토가 요구됨."
+    }
+  }
+}

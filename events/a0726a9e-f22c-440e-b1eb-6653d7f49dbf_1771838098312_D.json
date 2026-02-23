@@ -1,0 +1,138 @@
+{
+  "stage_name": "D",
+  "summary": "3개 레코드 정규화",
+  "rationale": "정규화 완료",
+  "confidence": 0.8,
+  "outputs": {
+    "shareholders": [
+      {
+        "name": "김요류",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 1,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": "주민등록번호"
+        },
+        "identifier": "1987-12-12",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 300,
+        "ratio": 30,
+        "amount": null,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "김요류 701212-******** 30.0 % 300",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 1,
+        "unknown_reasons": []
+      },
+      {
+        "name": "오계찬",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 1,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": "주민등록번호"
+        },
+        "identifier": "1988-08-08",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 300,
+        "ratio": 30,
+        "amount": null,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "오계찬 880808-******** 30.0 % 300",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 1,
+        "unknown_reasons": []
+      },
+      {
+        "name": "나머지",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 1,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": "주민등록번호"
+        },
+        "identifier": "1999-09-09",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 300,
+        "ratio": 30,
+        "amount": null,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "나머지 990909-******** 30.0 % 300",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 1,
+        "unknown_reasons": []
+      }
+    ],
+    "document_properties": {
+      "company_name": "주식회사 마스페일",
+      "total_shares_issued": 1000,
+      "total_capital": null,
+      "par_value_per_share": null,
+      "document_date": "2025-11-05",
+      "ownership_basis": "SHARE_COUNT",
+      "has_total_row": true,
+      "total_row_values": {
+        "shares": 1000,
+        "ratio": 100,
+        "amount": null
+      }
+    },
+    "ordering_detected": "UNKNOWN",
+    "ownership_basis_detected": "SHARE_COUNT",
+    "normalization_notes": []
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T09:14:58.312Z"
+}

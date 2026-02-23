@@ -1,0 +1,151 @@
+{
+  "stage_name": "C",
+  "summary": "3개 주주 레코드 추출",
+  "rationale": "게이트키퍼 제공 company_name/document_date 값을 그대로 사용함.; 이름과 주민등록번호는 원문 그대로 추출했으며 별표 마스킹을 보존함.; 세 번째 행의 성명 '나머지'는 문서 원문 그대로 보존.",
+  "confidence": 0.85,
+  "outputs": {
+    "records": [
+      {
+        "raw_name": "김요류",
+        "raw_identifier": "701212-********",
+        "raw_shares": "300",
+        "raw_ratio": "30.0 %",
+        "raw_amount": null,
+        "raw_share_class": null,
+        "raw_address": null,
+        "raw_remarks": null,
+        "raw_entity_hints": [
+          "주민등록번호"
+        ],
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": "주민등록번호"
+        },
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "김요류 701212-******** 30.0 % 300",
+            "source": "VISION"
+          }
+        ]
+      },
+      {
+        "raw_name": "오계찬",
+        "raw_identifier": "880808-********",
+        "raw_shares": "300",
+        "raw_ratio": "30.0 %",
+        "raw_amount": null,
+        "raw_share_class": null,
+        "raw_address": null,
+        "raw_remarks": null,
+        "raw_entity_hints": [
+          "주민등록번호"
+        ],
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": "주민등록번호"
+        },
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "오계찬 880808-******** 30.0 % 300",
+            "source": "VISION"
+          }
+        ]
+      },
+      {
+        "raw_name": "나머지",
+        "raw_identifier": "990909-********",
+        "raw_shares": "300",
+        "raw_ratio": "30.0 %",
+        "raw_amount": null,
+        "raw_share_class": null,
+        "raw_address": null,
+        "raw_remarks": null,
+        "raw_entity_hints": [
+          "주민등록번호"
+        ],
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": "주민등록번호"
+        },
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "나머지 990909-******** 30.0 % 300",
+            "source": "VISION"
+          }
+        ]
+      }
+    ],
+    "document_info": {
+      "company_name": "주식회사 마스페일",
+      "total_shares_declared": "1,000",
+      "total_capital_declared": null,
+      "par_value_per_share": null,
+      "document_date": "2025년 11월 05일",
+      "detected_ownership_basis": "SHARE_COUNT"
+    },
+    "table_structure": {
+      "column_headers": [
+        "No",
+        "성명",
+        "주민등록번호",
+        "지분율(%)",
+        "주식",
+        "비고"
+      ],
+      "identifier_column_header": "주민등록번호",
+      "has_total_row": true,
+      "total_row_values": {
+        "지분율(%)": "100.0 %",
+        "주식": "1,000"
+      }
+    },
+    "extraction_notes": [
+      "게이트키퍼 제공 company_name/document_date 값을 그대로 사용함.",
+      "이름과 주민등록번호는 원문 그대로 추출했으며 별표 마스킹을 보존함.",
+      "세 번째 행의 성명 '나머지'는 문서 원문 그대로 보존."
+    ],
+    "blockers": []
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T09:14:40.438Z"
+}

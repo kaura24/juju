@@ -339,8 +339,8 @@ AI의 판단 결과를 코드로 심사하는 최종 관문입니다. (`ruleEngi
 
 ---
 
-**Last Updated**: 2026-02-01
-**System Version**: 3.0.0 (Vercel & PDF Optimized) - Hybrid Architecture
+**Last Updated**: 2026-02-11
+**System Version**: 3.1.0 (Multi-Platform Optimized) - Hybrid Architecture
 **Maintainer**: JuJu Dev Team
 
 ---
@@ -392,6 +392,15 @@ PDF를 이미지로 변환하는 `scripts/pdf-to-images.cjs` 모듈은 Node.js �
 3.  **Self-Healing Detail Page**: 분석 상세 페이지 진입 시 상태가 `pending`인 경우, 시스템이 자동으로 분석 실행(Execute) 코드를 재트리거하는 클라이언트-서버 협업 로직을 구현했습니다.
 4.  **Client-Side Polling Fallback**: SSE(Server-Sent Events) 연결이 불안정한 환경에서도 5초 주기로 최신 상태를 강제 동기화하는 백업 메커니즘을 적용했습니다.
 5.  **Debug Monitor (🐞)**: 실시간 API 통신 및 SSE 이벤트를 모니터링할 수 있는 숨겨진 디버그 패널을 추가하여 운영 안정성을 확보했습니다.
+
+### 🔄 Google Drive 동기화 충돌 (SvelteKit Routing 500 Error)
+- **증상**: Vite 개발 서버 접속 시 `500 Internal Server Error` 발생. 터미널 및 브라우저 화면에 `Files prefixed with + are reserved (saw src/routes/+layout (1).svelte)` 에러 메시지 출력.
+- **원인**: Google Drive 연동(동기화) 환경에서 로컬 파일이 수정될 때 충돌이 발생하면, `+layout (1).svelte`, `+page (1).svelte` 등 `(1)`이 붙은 복제본이 자동 생성됩니다. SvelteKit은 `+` 기호를 라우팅 예약어로 강제하므로, 문법을 어긴 파일명이 스캔되면 즉시 서버 렌더링을 차단하고 500 에러를 반환합니다.
+- **조치사항**:
+  - 프로젝트 내에 생성된 Google Drive 충돌 복제 파일을 모두 삭제해야 합니다 (`* (1).*` 패턴).
+  - 터미널(PowerShell) 일괄 삭제 명령어: `Get-ChildItem -Path . -Recurse -Filter "* (1).*" | Remove-Item -Force`
+  - 파일을 삭제하면 Vite 서버가 자동으로 변경사항을 감지하여 다시 정상적으로 작동합니다.
+  - **예방**: 가급적 코딩 중인 `src/` 디렉토리는 Google Drive 실시간 동기화 폴더에서 제외하거나, 충돌이 발생할 때마다 복제본을 즉시 제거해야 합니다.
 
 ---
 

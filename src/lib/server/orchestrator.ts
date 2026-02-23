@@ -73,12 +73,20 @@ async function loadImageAsBase64(filePath: string): Promise<{ base64: string; mi
 async function uploadImagesToSupabase(
   runId: string,
   images: { base64: string; mimeType: string }[],
-  requireUpload: boolean
+  requireUpload: boolean,
+  useSupabaseContext?: boolean
 ): Promise<string[]> {
   const { env } = await import('$env/dynamic/private');
+  const isSupabase = useSupabaseContext !== undefined ? useSupabaseContext : (process.env.USE_SUPABASE === 'true');
+
+  if (useSupabaseContext === false) {
+    console.log('[Orchestrator] Local mode requested for execution, skipping Supabase image upload.');
+    return [];
+  }
+
   const hasServiceKey = !!env.SUPABASE_SERVICE_KEY;
   const hasAnonKey = !!env.SUPABASE_ANON_KEY;
-  if (!env.SUPABASE_URL || (!hasServiceKey && !hasAnonKey)) {
+  if (!isSupabase || !env.SUPABASE_URL || (!hasServiceKey && !hasAnonKey)) {
     console.warn('[Orchestrator] Supabase config missing, skipping cloud upload.');
     logExecutionCheckpoint(
       runId,
@@ -228,7 +236,7 @@ export async function initializeOrchestrator(): Promise<void> {
 
 const runLocks = new Set<string>();
 
-export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = 'MULTI_AGENT'): Promise<void> {
+export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = 'MULTI_AGENT', useSupabaseContext?: boolean): Promise<void> {
   console.log(`[Orchestrator] === executeRun ENTRY === runId=${runId}, mode=${mode}, locked=${runLocks.has(runId)}`);
 
   // 멱등성 보장: 이미 실행 중이면 중복 실행 방지
@@ -292,10 +300,10 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
     // ============================================
     // Supabase Upload (New)
     // ============================================
-    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
-    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 업로드 시작', '분석을 위해 이미지를 클라우드 스토리지에 업로드합니다');
-    logExecutionCheckpoint(runId, 'executeRun', `Uploading images to Supabase...`);
-    const imageUrls = await uploadImagesToSupabase(runId, images, isServerless);
+    await addAgentLog(runId, 'Orchestrator', 'INFO', '이미지 스토리지 확인', '문서 스토리지 정책을 확인합니다.');
+
+    logExecutionCheckpoint(runId, 'executeRun', `Uploading images to Supabase... (useSupabaseContext=${useSupabaseContext})`);
+    const imageUrls = await uploadImagesToSupabase(runId, images, isServerless, useSupabaseContext);
     logExecutionCheckpoint(runId, 'executeRun', `Supabase upload done. URLs: ${imageUrls.length}`);
 
     const { updateRunStorageProvider } = await import('./storage');
@@ -472,7 +480,7 @@ export async function executeRun(runId: string, mode: 'FAST' | 'MULTI_AGENT' = '
         emitHITLRequired(runId, hitlPacket);
         return;
       }
-      
+
       // FAST 모드는 어떤 트리거라도 존재하면 HITL로 분류 (엄격 모드)
       if (finalValidationReport.triggers.length > 0) {
         await addAgentLog(runId, 'FastExtractor', 'WARNING', '정합성 검증 경고', '검증 트리거가 존재하여 HITL로 분류합니다');
@@ -794,15 +802,15 @@ export async function executeNextStep(runId: string): Promise<{ status: string; 
       console.error(`[executeNextStep] Error executing run ${runId}:`, err);
     });
 
-    return { 
-      status: 'running', 
+    return {
+      status: 'running',
       stage: stageOrder[nextStageIndex],
       message: `Starting stage ${stageOrder[nextStageIndex]}`
     };
   } catch (error) {
-    return { 
-      status: 'error', 
-      message: error instanceof Error ? error.message : 'Unknown error' 
+    return {
+      status: 'error',
+      message: error instanceof Error ? error.message : 'Unknown error'
     };
   }
 }

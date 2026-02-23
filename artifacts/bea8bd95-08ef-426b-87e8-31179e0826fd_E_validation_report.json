@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "triggers": [],
+  "summary_metrics": {
+    "total_records": 2,
+    "null_shares_count": 0,
+    "null_ratio_count": 0,
+    "null_amount_count": 0,
+    "sum_shares": 20000,
+    "sum_ratio": 100,
+    "sum_amount": 200000000,
+    "has_reference_total": true,
+    "individual_count": 2,
+    "corporate_count": 0,
+    "unknown_entity_count": 0
+  },
+  "data_quality_score": 100,
+  "structural_failures": []
+}

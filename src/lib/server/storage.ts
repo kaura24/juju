@@ -53,10 +53,16 @@ const DIRS = {
 };
 const LOG_DIR = 'logs';
 
+import fs from 'fs/promises';
+import path from 'path';
+
 // 헬퍼: 파일 기반 저장/로드 (Hybrid: Local FS or Supabase)
 async function _save<T>(dir: string, key: string, data: T): Promise<void> {
   if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Local file writes are disabled.');
+    const filePath = path.join(process.cwd(), dir, `${key}.json`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2), 'utf-8');
+    return;
   }
 
   try {
@@ -68,23 +74,51 @@ async function _save<T>(dir: string, key: string, data: T): Promise<void> {
   }
 }
 
-async function _load<T>(dir: string, key: string): Promise<T | null> {
+async function _load<T>(dir: string, _id: string): Promise<T | null> {
+  const filePath = path.join(process.cwd(), dir, `${_id}.json`);
   if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Local file reads are disabled.');
+    try {
+      const data = await fs.readFile(filePath, 'utf-8');
+      return JSON.parse(data) as T;
+    } catch { return null; }
+  }
+
+  // Fallback check for local file first
+  try {
+    const data = await fs.readFile(filePath, 'utf-8');
+    return JSON.parse(data) as T;
+  } catch (e) {
+    // Ignore
   }
 
   try {
     const { downloadJson } = await import('./services/supabase_storage');
-    return await downloadJson<T>(`${dir}/${key}.json`);
+    return await downloadJson<T>(`${dir}/${_id}.json`);
   } catch (e) {
-    console.warn(`[Storage] Supabase Load Failed (${dir}/${key}):`, e);
+    console.warn(`[Storage] Supabase Load Failed (${dir}/${_id}):`, e);
     return null;
   }
 }
 
 async function _list<T>(dir: string): Promise<T[]> {
   if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Local file listing is disabled.');
+    try {
+      const dirPath = path.join(process.cwd(), dir);
+      await fs.mkdir(dirPath, { recursive: true });
+      const files = await fs.readdir(dirPath);
+      const jsonFiles = files.filter(f => f.endsWith('.json'));
+      const tasks = jsonFiles.map(async f => {
+        try {
+          const content = await fs.readFile(path.join(dirPath, f), 'utf-8');
+          return JSON.parse(content) as T;
+        } catch (e) { return null; }
+      });
+      const loaded = await Promise.all(tasks);
+      return loaded.filter(item => item !== null) as T[];
+    } catch (e) {
+      console.error(`[Storage] Local List Failed (${dir}):`, e);
+      return [];
+    }
   }
 
   try {
@@ -113,7 +147,8 @@ async function _list<T>(dir: string): Promise<T[]> {
 export async function createRun(
   filePaths: string[],
   executionMode?: 'FAST' | 'MULTI_AGENT',
-  fileMetadata?: Record<string, { original_name: string }>
+  fileMetadata?: Record<string, { original_name: string }>,
+  useSupabaseContext?: boolean
 ): Promise<Run> {
   const run: Run = {
     id: uuidv4(),
@@ -125,7 +160,23 @@ export async function createRun(
     updated_at: new Date().toISOString()
   };
 
-  await _save(DIRS.runs, run.id, run);
+  // Run에 스토리지 프로바이더 기록 (추후 조회를 위해)
+  (run as any).storage_provider = useSupabaseContext !== undefined
+    ? (useSupabaseContext ? 'SUPABASE' : 'LOCAL')
+    : (USE_SUPABASE ? 'SUPABASE' : 'LOCAL');
+
+  // 강제로 로컬 저장을 원할 경우, 임시로 USE_SUPABASE 검사를 우회해야 함
+  // _save 자체를 수정하기엔 범위가 크므로 여기서 판단
+  if (useSupabaseContext === false) {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const filePath = path.join(process.cwd(), DIRS.runs, `${run.id}.json`);
+    await fs.mkdir(path.dirname(filePath), { recursive: true });
+    await fs.writeFile(filePath, JSON.stringify(run, null, 2), 'utf-8');
+  } else {
+    await _save(DIRS.runs, run.id, run);
+  }
+
   return run;
 }
 
@@ -133,7 +184,18 @@ export async function createRun(
  * Run 조회
  */
 export async function getRun(runId: string): Promise<Run | null> {
-  return await _load<Run>(DIRS.runs, runId);
+  const localRun = await _load<Run>(DIRS.runs, runId).catch(() => null);
+  if (localRun) return localRun;
+
+  if (USE_SUPABASE) {
+    try {
+      const { downloadJson } = await import('./services/supabase_storage');
+      return await downloadJson<Run>(`${DIRS.runs}/${runId}.json`);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
 }
 /**
  * Run 목록 조회
@@ -151,14 +213,25 @@ export async function listRuns(): Promise<Run[]> {
  * - 원본 파일명은 URL 인코딩 이슈 등으로 문제를 일으킬 수 있음
  * - 무조건 UUID + 확장자로 저장하고, 원본 이름은 메타데이터로 관리 권장
  */
-export async function saveFile(file: File): Promise<string> {
+export async function saveFile(file: File, useSupabaseContext?: boolean): Promise<string> {
+  const isSupabase = useSupabaseContext !== undefined ? useSupabaseContext : USE_SUPABASE;
+
+  if (!isSupabase) {
+    const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
+    const safeFilename = `${uuidv4()}.${ext}`;
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    const buffer = Buffer.from(await file.arrayBuffer());
+    await fs.writeFile(path.join(uploadDir, safeFilename), buffer);
+
+    // 로컬 환경에서는 개발 서버의 파일을 정적 서빙(가정)하거나, 로컬 경로 반환
+    return `/uploads/${safeFilename}`;
+  }
+
   const buffer = Buffer.from(await file.arrayBuffer());
   const ext = file.name.split('.').pop()?.toLowerCase() || 'bin';
   const safeFilename = `${uuidv4()}.${ext}`;
-
-  if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Local file writes are disabled.');
-  }
 
   const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
   const uploadPath = `uploads/${safeFilename}`;
@@ -169,7 +242,9 @@ export async function saveFile(file: File): Promise<string> {
 /**
  * Base64 이미지로 파일 저장
  */
-export async function saveBase64Image(base64Data: string, mimeType: string): Promise<string> {
+export async function saveBase64Image(base64Data: string, mimeType: string, useSupabaseContext?: boolean): Promise<string> {
+  const isSupabase = useSupabaseContext !== undefined ? useSupabaseContext : USE_SUPABASE;
+
   const extension = mimeType.split('/')[1] || 'png';
   // 확장자도 정규화 (예: jpeg+xml -> jpeg)
   const sanitizedExt = extension.replace(/[^\w]/g, '').toLowerCase();
@@ -178,8 +253,12 @@ export async function saveBase64Image(base64Data: string, mimeType: string): Pro
   const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
   const buffer = Buffer.from(cleanBase64, 'base64');
 
-  if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Local file writes are disabled.');
+  if (!isSupabase) {
+    const uploadDir = path.join(process.cwd(), 'uploads');
+    await fs.mkdir(uploadDir, { recursive: true });
+
+    await fs.writeFile(path.join(uploadDir, filename), buffer);
+    return `/uploads/${filename}`;
   }
 
   const { uploadRawFile, getRawFileUrl } = await import('./services/supabase_storage');
@@ -350,7 +429,48 @@ export async function getStageEvents(runId: string): Promise<StageEvent[]> {
   const events: StageEvent[] = [];
 
   if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Local file access is disabled.');
+    try {
+      const fs = await import('fs/promises');
+      const path = await import('path');
+      const dirPath = path.join(process.cwd(), DIRS.events);
+      await fs.mkdir(dirPath, { recursive: true });
+      const files = await fs.readdir(dirPath);
+
+      const targetFiles = files.filter(f => f.startsWith(runId) && f.endsWith('.json'));
+      for (const f of targetFiles) {
+        try {
+          const content = await fs.readFile(path.join(dirPath, f), 'utf-8');
+          events.push(JSON.parse(content) as StageEvent);
+        } catch (e) {
+          // Ignore
+        }
+      }
+    } catch (e) {
+      console.error('[Storage] Failed to load stage events locally:', e);
+    }
+    return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+  }
+
+  // Fallback check for local files even if USE_SUPABASE is true (in case it was a local run)
+  try {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const dirPath = path.join(process.cwd(), DIRS.events);
+    const files = await fs.readdir(dirPath).catch(() => []);
+    const targetFiles = files.filter(f => f.startsWith(runId) && f.endsWith('.json'));
+    if (targetFiles.length > 0) {
+      for (const f of targetFiles) {
+        try {
+          const content = await fs.readFile(path.join(dirPath, f), 'utf-8');
+          events.push(JSON.parse(content) as StageEvent);
+        } catch (e) {
+          // Ignore
+        }
+      }
+      return events.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+    }
+  } catch (e) {
+    // Ignore
   }
 
   // Supabase: List files and filter by name before downloading
@@ -443,7 +563,41 @@ export async function clearAllRuns(): Promise<{ deletedRuns: number; deletedFile
   let deletedFiles = 0;
 
   if (!USE_SUPABASE) {
-    throw new Error('[Storage] USE_SUPABASE=false. Cannot clear storage.');
+    try {
+      const folders = [DIRS.runs, DIRS.events, DIRS.artifacts, DIRS.hitl, LOG_DIR];
+      for (const folder of folders) {
+        const dirPath = path.join(process.cwd(), folder);
+        try {
+          const files = await fs.readdir(dirPath);
+          for (const f of files) {
+            if (f.endsWith('.json')) {
+              await fs.unlink(path.join(dirPath, f));
+              deletedFiles++;
+              if (folder === DIRS.runs) deletedRuns++;
+            }
+          }
+        } catch (e) { }
+      }
+
+      const uploadDir = path.join(process.cwd(), 'uploads');
+      try {
+        const uploadFiles = await fs.readdir(uploadDir);
+        for (const f of uploadFiles) {
+          await fs.unlink(path.join(uploadDir, f));
+          deletedFiles++;
+        }
+      } catch (e) { }
+
+      // 세션 잠금 강제 해제
+      const { forceReleaseLock } = await import('./sessionLock');
+      await forceReleaseLock();
+
+      console.log(`[Storage] clearAllRuns completed locally: ${deletedRuns} runs, ${deletedFiles} total files`);
+      return { deletedRuns, deletedFiles };
+    } catch (e) {
+      console.error('[Storage] clearAllRuns failed locally:', e);
+      throw e;
+    }
   }
 
   try {

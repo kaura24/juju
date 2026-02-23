@@ -1,0 +1,129 @@
+{
+  "stage_name": "INSIGHTS",
+  "summary": "분석 완료: 25% 이상 주주(박종국(70%), 김혜정(30%))",
+  "rationale": "종합 분석 결과: 정상(정합성 확인됨) - 주식회사 진이앤스의 제출된 주주명부상 총 발행주식수는 20,000주로, 개별 주주 보유주식 합계(20,000주)와 일치하여 정합성이 확보됨. 주요 주주인 박종국(14,000주, 70%)과 김혜정(6,000주, 30%)의 지분율 합계는 100%로 확인됨. 따라서, 이들 주주 정보는 명확하게 기재되어 있으며 실제 소유주 확인에 문제가 없음을 확인함. 박종국과 김혜정 두 명이 각각 25% 이상의 지분을 보유하고 있어, 이들 주주가 실제 소유주로 인정됨. 모든 데이터에서 불일치 사항이나 중요 식별정보의 누락이 없으므로, 실제 소유주 신원이 확인됨.",
+  "confidence": 0.5,
+  "outputs": {
+    "document_assessment": {
+      "is_valid_shareholder_register": "YES",
+      "evidence_refs": []
+    },
+    "over_25_percent": [
+      {
+        "name": "박종국",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 1,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": false,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": null
+        },
+        "identifier": "1972-07-23",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 14000,
+        "ratio": 70,
+        "amount": 140000000,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "박종국 720723-1626116 서울특별시 송파구 위례광장로 121, 2411동 602호(장지동, 위례24단지아파트) 14,000주 10,000원 140,000,000원",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 1,
+        "unknown_reasons": []
+      },
+      {
+        "name": "김혜정",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 1,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": false,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": false,
+          "identifier_column_header": null
+        },
+        "identifier": "1978-05-18",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 6000,
+        "ratio": 30,
+        "amount": 60000000,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "김혜정 780518-2051817 서울특별시 송파구 위례광장로 121, 2411동 602호(장지동, 위례24단지아파트) 6,000주 10,000원 60,000,000원",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 1,
+        "unknown_reasons": []
+      }
+    ],
+    "ordering_rule": "UNKNOWN",
+    "totals": {
+      "total_shares_declared": 20000,
+      "total_amount_declared": 200000000
+    },
+    "document_date": "2026-01-22",
+    "document_date_staleness": {
+      "is_stale": false,
+      "days_diff": 3,
+      "threshold_days": 365
+    },
+    "company_name": "주식회사 진이앤스",
+    "share_classes_found": [],
+    "trust_level": "HIGH",
+    "cannot_determine": [],
+    "synthesis_reasoning": "주식회사 진이앤스의 제출된 주주명부상 총 발행주식수는 20,000주로, 개별 주주 보유주식 합계(20,000주)와 일치하여 정합성이 확보됨. 주요 주주인 박종국(14,000주, 70%)과 김혜정(6,000주, 30%)의 지분율 합계는 100%로 확인됨. 따라서, 이들 주주 정보는 명확하게 기재되어 있으며 실제 소유주 확인에 문제가 없음을 확인함. 박종국과 김혜정 두 명이 각각 25% 이상의 지분을 보유하고 있어, 이들 주주가 실제 소유주로 인정됨. 모든 데이터에서 불일치 사항이나 중요 식별정보의 누락이 없으므로, 실제 소유주 신원이 확인됨.",
+    "synthesis_confidence": 0.5,
+    "validation_summary": {
+      "status": "PASS",
+      "triggers": [],
+      "summary_metrics": {
+        "total_records": 2,
+        "null_shares_count": 0,
+        "null_ratio_count": 0,
+        "null_amount_count": 0,
+        "sum_shares": 20000,
+        "sum_ratio": 100,
+        "sum_amount": 200000000,
+        "has_reference_total": true,
+        "individual_count": 2,
+        "corporate_count": 0,
+        "unknown_entity_count": 0
+      },
+      "data_quality_score": 100,
+      "structural_failures": [],
+      "decidability": {
+        "is_decidable": true,
+        "reason": "주식회사 진이앤스의 제출된 주주명부상 총 발행주식수는 20,000주로, 개별 주주 보유주식 합계(20,000주)와 일치하여 정합성이 확보됨. 주요 주주인 박종국(14,000주, 70%)과 김혜정(6,000주, 30%)의 지분율 합계는 100%로 확인됨. 따라서, 이들 주주 정보는 명확하게 기재되어 있으며 실제 소유주 확인에 문제가 없음을 확인함. 박종국과 김혜정 두 명이 각각 25% 이상의 지분을 보유하고 있어, 이들 주주가 실제 소유주로 인정됨. 모든 데이터에서 불일치 사항이나 중요 식별정보의 누락이 없으므로, 실제 소유주 신원이 확인됨."
+      }
+    }
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T09:36:42.984Z"
+}

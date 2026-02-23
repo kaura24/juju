@@ -15,6 +15,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     let filePaths: string[] = [];
     let fileMetadata: Record<string, { original_name: string }> = {};
     let mode: 'FAST' | 'MULTI_AGENT' | undefined;
+    let useSupabaseContext: boolean | undefined = undefined;
 
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData();
@@ -25,25 +26,31 @@ export const POST: RequestHandler = async ({ request, platform }) => {
         mode = modeVal;
       }
 
+      const useSupabaseVal = formData.get('useSupabase');
+      if (useSupabaseVal !== null) {
+        useSupabaseContext = useSupabaseVal === 'true';
+      }
+
       if (files.length === 0) {
         return json({ error: '파일이 없습니다' }, { status: 400 });
       }
 
       for (const file of files) {
         if (file.size === 0) continue;
-        const path = await saveFile(file);
+        const path = await saveFile(file, useSupabaseContext);
         filePaths.push(path);
         fileMetadata[path] = { original_name: file.name };
       }
     } else if (contentType.includes('application/json')) {
       const body = await request.json();
       if (body.mode) mode = body.mode;
+      if (typeof body.useSupabase === 'boolean') useSupabaseContext = body.useSupabase;
 
       if (body.images && Array.isArray(body.images)) {
         const { saveBase64Image } = await import('$lib/server/storage');
         for (const img of body.images) {
           if (img.base64 && img.mimeType) {
-            const path = await saveBase64Image(img.base64, img.mimeType);
+            const path = await saveBase64Image(img.base64, img.mimeType, useSupabaseContext);
             filePaths.push(path);
             // For base64, we don't have original name, so skip metadata or use synthetic name
             fileMetadata[path] = { original_name: `image_${Date.now()}.${img.mimeType.split('/')[1]}` };
@@ -57,7 +64,7 @@ export const POST: RequestHandler = async ({ request, platform }) => {
     }
 
     // Run 생성
-    const run = await createRun(filePaths, mode, fileMetadata);
+    const run = await createRun(filePaths, mode, fileMetadata, useSupabaseContext);
 
     // 서버리스 환경에서는 즉시 실행하지 않고 큐 상태로만 등록
     const envInfo = await detectEnvironmentAsync();

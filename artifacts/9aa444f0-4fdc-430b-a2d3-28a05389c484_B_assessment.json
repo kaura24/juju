@@ -1,0 +1,33 @@
+{
+  "is_shareholder_register": "YES",
+  "has_required_info": "YES",
+  "required_fields_present": {
+    "shareholder_names": "YES",
+    "shares_or_ratio": "YES",
+    "ownership_amount": "NO",
+    "total_shares": "YES",
+    "total_capital": "NO",
+    "share_class": "NO",
+    "entity_identifiers": "YES"
+  },
+  "doc_quality": {
+    "readability": "HIGH",
+    "table_structure": "OK",
+    "page_count_guess": 1
+  },
+  "detected_document_type": "주주명부",
+  "detected_ownership_basis": "SHARE_COUNT",
+  "document_info": {
+    "company_name": "주식회사 퓨처시스템",
+    "document_date": "2025년 12월 05일"
+  },
+  "rationale": "문서 형식은 주주명부로 명확히 확인되며, 모든 필수 정보가 존재합니다.",
+  "evidence_refs": [
+    {
+      "page_no": 1,
+      "line_snippet": "발행일 : 2025년 12월 05일",
+      "source": "VISION"
+    }
+  ],
+  "route_suggestion": "EXTRACT"
+}

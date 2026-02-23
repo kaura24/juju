@@ -1,0 +1,75 @@
+{
+  "stage_name": "E",
+  "summary": "검증 결과: NEED_HITL ",
+  "rationale": "주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이); 지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+  "confidence": 0.5,
+  "outputs": {
+    "status": "NEED_HITL",
+    "triggers": [
+      {
+        "rule_id": "E-SUM-001",
+        "severity": "BLOCKER",
+        "message": "주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이)",
+        "suggestion": "REFERENCE_VALUE_INPUT",
+        "metrics": {
+          "sum_shares": 900,
+          "total_shares_declared": 1000,
+          "diff_percent": "10.00"
+        }
+      },
+      {
+        "rule_id": "E-RAT-001",
+        "severity": "BLOCKER",
+        "message": "지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+        "suggestion": "MANUAL_CORRECTION",
+        "metrics": {
+          "sum_ratio": 90,
+          "coverage": 1
+        }
+      }
+    ],
+    "summary_metrics": {
+      "total_records": 3,
+      "null_shares_count": 0,
+      "null_ratio_count": 0,
+      "null_amount_count": 3,
+      "sum_shares": 900,
+      "sum_ratio": 90,
+      "sum_amount": null,
+      "has_reference_total": true,
+      "individual_count": 3,
+      "corporate_count": 0,
+      "unknown_entity_count": 0
+    },
+    "data_quality_score": 80,
+    "structural_failures": [
+      "E-SUM-001",
+      "E-RAT-001"
+    ]
+  },
+  "triggers": [
+    {
+      "rule_id": "E-SUM-001",
+      "severity": "BLOCKER",
+      "message": "주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이)",
+      "suggestion": "REFERENCE_VALUE_INPUT",
+      "metrics": {
+        "sum_shares": 900,
+        "total_shares_declared": 1000,
+        "diff_percent": "10.00"
+      }
+    },
+    {
+      "rule_id": "E-RAT-001",
+      "severity": "BLOCKER",
+      "message": "지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+      "suggestion": "MANUAL_CORRECTION",
+      "metrics": {
+        "sum_ratio": 90,
+        "coverage": 1
+      }
+    }
+  ],
+  "next_action": "HITL",
+  "timestamp": "2026-02-23T09:15:00.481Z"
+}

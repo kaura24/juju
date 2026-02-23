@@ -1,0 +1,28 @@
+{
+  "stage_name": "E",
+  "summary": "검증 결과: PASS ",
+  "rationale": "모든 검증 통과",
+  "confidence": 0.95,
+  "outputs": {
+    "status": "PASS",
+    "triggers": [],
+    "summary_metrics": {
+      "total_records": 4,
+      "null_shares_count": 0,
+      "null_ratio_count": 0,
+      "null_amount_count": 4,
+      "sum_shares": 10000,
+      "sum_ratio": 100,
+      "sum_amount": null,
+      "has_reference_total": true,
+      "individual_count": 3,
+      "corporate_count": 1,
+      "unknown_entity_count": 0
+    },
+    "data_quality_score": 100,
+    "structural_failures": []
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T08:27:02.182Z"
+}

@@ -56,18 +56,20 @@ export const POST: RequestHandler = async ({ params, request, platform }) => {
       }, { status: 202 });
     }
 
-    // 백그라운드에서 실행 (즉시 응답)
-    console.log(`[API-EXECUTE] Triggering execution for run ${runId} with mode ${mode}`);
-    const executionPromise = executeRun(runId, mode).catch(error => {
-      console.error(`[API-EXECUTE] Background execution error for run ${runId}:`, error);
-    });
-
     if ((platform as any)?.waitUntil) {
       console.log(`[API-EXECUTE] Using platform.waitUntil for run ${runId}`);
+      const executionPromise = executeRun(runId, mode, body.useSupabase).catch(error => {
+        console.error(`[API-EXECUTE] Background execution error for run ${runId}:`, error);
+      });
       (platform as any).waitUntil(executionPromise);
     } else {
-      console.warn(`[API-EXECUTE] platform.waitUntil not available for run ${runId}, executing synchronously`);
-      await executionPromise;
+      console.warn(`[API-EXECUTE] platform.waitUntil not available for run ${runId}, executing as true background (fire-and-forget)`);
+      // Use setTimeout to completely detach from the request context in local/Vite
+      setTimeout(() => {
+        executeRun(runId, mode, body.useSupabase).catch(error => {
+          console.error(`[API-EXECUTE] Background execution error for run ${runId}:`, error);
+        });
+      }, 0);
     }
 
     return json({

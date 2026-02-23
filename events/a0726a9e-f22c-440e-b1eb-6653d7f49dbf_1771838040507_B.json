@@ -1,0 +1,42 @@
+{
+  "stage_name": "B",
+  "summary": "문서 판정: YES ",
+  "rationale": "문서가 주주명부 형식을 명확히 따르고 있으며, 모든 필수 정보(주주 이름, 식별 정보, 지분 정보, 회사명, 발행일)가 존재합니다.",
+  "confidence": 0.9,
+  "outputs": {
+    "is_shareholder_register": "YES",
+    "has_required_info": "YES",
+    "required_fields_present": {
+      "shareholder_names": "YES",
+      "shares_or_ratio": "YES",
+      "ownership_amount": "YES",
+      "total_shares": "YES",
+      "total_capital": "YES",
+      "share_class": "NO",
+      "entity_identifiers": "YES"
+    },
+    "doc_quality": {
+      "readability": "HIGH",
+      "table_structure": "OK",
+      "page_count_guess": 1
+    },
+    "detected_document_type": "주주명부",
+    "detected_ownership_basis": "SHARE_COUNT",
+    "document_info": {
+      "company_name": "주식회사 마스페일",
+      "document_date": "2025년 11월 05일"
+    },
+    "rationale": "문서가 주주명부 형식을 명확히 따르고 있으며, 모든 필수 정보(주주 이름, 식별 정보, 지분 정보, 회사명, 발행일)가 존재합니다.",
+    "evidence_refs": [
+      {
+        "page_no": 1,
+        "line_snippet": "주주명부 (날짜: 2025년 11월 05일)",
+        "source": "VISION"
+      }
+    ],
+    "route_suggestion": "EXTRACT"
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T09:14:00.507Z"
+}

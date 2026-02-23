@@ -1,0 +1,93 @@
+{
+  "stage_name": "INSIGHTS",
+  "summary": "분석 완료: 25% 이상 주주(김철수(60%))",
+  "rationale": "종합 분석 결과: 정상(정합성 확인됨) - 제출된 주주명부상 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계(10,000주)와 일치하여 정합성이 확보됨. 주요 주주인 김철수(6,000주, 60%), 이영희(2,000주, 20%), (주)한빛소프트(1,500주, 15%)의 지분율 합계 또한 100%로 검증됨. 주주 김철수는 25% 이상 지분을 보유하고 있어 주요 주주로 판별됨. 데이터 품질 점수는 100으로, 주주 식별정보와 관련하여 결함이 발견되지 않음. 다만, 박민수(500주, 5%)의 지분율이 25% 미만이므로 해당 주주는 시스템에 포함되지 않음. 실소유주 확인 관점에서 실제 소유주 판별에 필요한 데이터는 양호하며, 식별번호도 문제없이 제공됨. 결과적으로 불일치사항을 확인할 수 없으며, 데이터 정합성이 확보되었음.",
+  "confidence": 0.5,
+  "outputs": {
+    "document_assessment": {
+      "is_valid_shareholder_register": "YES",
+      "evidence_refs": []
+    },
+    "over_25_percent": [
+      {
+        "name": "김철수",
+        "entity_type": "INDIVIDUAL",
+        "entity_type_confidence": 1,
+        "entity_signals": {
+          "has_resident_id_pattern": true,
+          "has_birth_date": false,
+          "has_personal_name_format": true,
+          "explicitly_marked_individual": false,
+          "column_indicates_individual": true,
+          "has_corporate_prefix_suffix": false,
+          "has_business_reg_number": false,
+          "has_corporate_reg_number": false,
+          "has_representative_mention": false,
+          "explicitly_marked_corporate": false,
+          "has_foreign_corporate_suffix": false,
+          "has_investment_entity_keyword": false,
+          "column_indicates_corporate": true,
+          "identifier_column_header": "주민(사업자)번호"
+        },
+        "identifier": "1975-01-01",
+        "identifier_type": "BIRTH_DATE",
+        "shares": 6000,
+        "ratio": 60,
+        "amount": null,
+        "share_class": null,
+        "evidence_refs": [
+          {
+            "page_no": 1,
+            "line_snippet": "김철수 750101-1234567 6,000 60 %",
+            "source": "VISION"
+          }
+        ],
+        "confidence": 1,
+        "unknown_reasons": []
+      }
+    ],
+    "ordering_rule": "RATIO_DESC",
+    "totals": {
+      "total_shares_declared": 10000,
+      "total_amount_declared": null
+    },
+    "document_date": "2025-12-05",
+    "document_date_staleness": {
+      "is_stale": false,
+      "days_diff": 51,
+      "threshold_days": 365
+    },
+    "company_name": "주식회사 퍼처시스템",
+    "share_classes_found": [],
+    "trust_level": "HIGH",
+    "cannot_determine": [],
+    "synthesis_reasoning": "제출된 주주명부상 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계(10,000주)와 일치하여 정합성이 확보됨. 주요 주주인 김철수(6,000주, 60%), 이영희(2,000주, 20%), (주)한빛소프트(1,500주, 15%)의 지분율 합계 또한 100%로 검증됨. 주주 김철수는 25% 이상 지분을 보유하고 있어 주요 주주로 판별됨. 데이터 품질 점수는 100으로, 주주 식별정보와 관련하여 결함이 발견되지 않음. 다만, 박민수(500주, 5%)의 지분율이 25% 미만이므로 해당 주주는 시스템에 포함되지 않음. 실소유주 확인 관점에서 실제 소유주 판별에 필요한 데이터는 양호하며, 식별번호도 문제없이 제공됨. 결과적으로 불일치사항을 확인할 수 없으며, 데이터 정합성이 확보되었음.",
+    "synthesis_confidence": 0.5,
+    "validation_summary": {
+      "status": "PASS",
+      "triggers": [],
+      "summary_metrics": {
+        "total_records": 4,
+        "null_shares_count": 0,
+        "null_ratio_count": 0,
+        "null_amount_count": 4,
+        "sum_shares": 10000,
+        "sum_ratio": 100,
+        "sum_amount": null,
+        "has_reference_total": true,
+        "individual_count": 3,
+        "corporate_count": 1,
+        "unknown_entity_count": 0
+      },
+      "data_quality_score": 100,
+      "structural_failures": [],
+      "decidability": {
+        "is_decidable": true,
+        "reason": "제출된 주주명부상 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계(10,000주)와 일치하여 정합성이 확보됨. 주요 주주인 김철수(6,000주, 60%), 이영희(2,000주, 20%), (주)한빛소프트(1,500주, 15%)의 지분율 합계 또한 100%로 검증됨. 주주 김철수는 25% 이상 지분을 보유하고 있어 주요 주주로 판별됨. 데이터 품질 점수는 100으로, 주주 식별정보와 관련하여 결함이 발견되지 않음. 다만, 박민수(500주, 5%)의 지분율이 25% 미만이므로 해당 주주는 시스템에 포함되지 않음. 실소유주 확인 관점에서 실제 소유주 판별에 필요한 데이터는 양호하며, 식별번호도 문제없이 제공됨. 결과적으로 불일치사항을 확인할 수 없으며, 데이터 정합성이 확보되었음."
+      }
+    }
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T08:32:59.449Z"
+}

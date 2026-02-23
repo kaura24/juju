@@ -2,6 +2,7 @@
 <script lang="ts">
   import { goto } from "$app/navigation";
   import UploadPanel from "$lib/components/UploadPanel.svelte";
+  import DebugPanel from "$lib/components/DebugPanel.svelte";
 
   interface RunItem {
     id: string;
@@ -13,6 +14,7 @@
 
   let recentRuns: RunItem[] = $state([]);
   let loading = $state(true);
+  let useSupabase = $state(false);
 
   async function loadRuns() {
     try {
@@ -29,25 +31,22 @@
   }
 
   async function handleUploaded(
-    event: CustomEvent<{ runId: string; mode: "FAST" | "MULTI_AGENT" }>,
+    event: CustomEvent<{ runId: string; mode: string }>,
   ) {
     const { runId, mode } = event.detail;
 
-    console.log(`[Home] New run created: ${runId}, mode: ${mode}`);
-
-    // 실행 시작 (모드 전달)
+    // 백그라운드 서버리스/인라인 실행 트리거
     try {
       await fetch(`/api/runs/${runId}/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode }),
+        body: JSON.stringify({ mode, useSupabase }),
       });
     } catch (error) {
       console.warn("[Home] Execute request failed, navigating anyway", error);
     }
 
-    // 상세 페이지로 이동 (강제 전체 리로드로 캐시 문제 방지)
-    window.location.href = `/runs/${runId}`;
+    goto(`/runs/${runId}`); // Client-side navigation
   }
 
   function formatTime(dateStr: string): string {
@@ -150,9 +149,47 @@
 
   <h1 class="page-title">JuJu Analysis</h1>
 
+  <!-- Storage Toggle -->
+  <div class="storage-toggle-wrapper">
+    <div class="storage-segmented-control">
+      <label class="segment-label" class:active={!useSupabase}>
+        <input
+          type="radio"
+          name="storageMode"
+          value={false}
+          bind:group={useSupabase}
+        />
+        <span class="icon">💻</span>
+        <span class="text">Local 저장소</span>
+      </label>
+      <label class="segment-label supabase" class:active={useSupabase}>
+        <input
+          type="radio"
+          name="storageMode"
+          value={true}
+          bind:group={useSupabase}
+        />
+        <span class="icon">☁️</span>
+        <span class="text">Supabase 연동</span>
+      </label>
+      <div class="segment-pill" class:supabase-active={useSupabase}></div>
+    </div>
+    <div class="storage-hint">
+      {#if !useSupabase}
+        <span class="hint local"
+          >PC 내부 경로에 파일을 저장하고 분석합니다.</span
+        >
+      {:else}
+        <span class="hint cloud"
+          >Supabase Storage 클라우드를 사용하여 파일을 저장합니다.</span
+        >
+      {/if}
+    </div>
+  </div>
+
   <!-- Upload Section -->
   <section class="upload-section">
-    <UploadPanel on:uploaded={handleUploaded} />
+    <UploadPanel {useSupabase} on:uploaded={handleUploaded} />
   </section>
 
   <!-- Recent Runs Section -->
@@ -236,6 +273,9 @@
     >
     <p>Powered by OpenAI Agents SDK · GPT-4o</p>
   </footer>
+
+  <!-- Hidden Debug Panel -->
+  <DebugPanel />
 </main>
 
 <style>
@@ -303,11 +343,120 @@
   /* Upload Section */
   .upload-section {
     margin-bottom: 64px;
+    width: 100%;
+  }
+
+  /* Storage Toggle - Segmented Control */
+  .storage-toggle-wrapper {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 32px;
+  }
+
+  .storage-segmented-control {
+    position: relative;
+    display: flex;
+    background: var(--fluent-bg-layer);
+    border: 1px solid var(--fluent-border-subtle);
+    border-radius: 999px;
+    padding: 4px;
+    width: fit-content;
+    box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+    z-index: 1;
+  }
+
+  .segment-label {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 10px 24px;
+    cursor: pointer;
+    z-index: 2;
+    border-radius: 999px;
+    transition: color 0.3s ease;
+    color: var(--fluent-text-secondary);
+  }
+
+  .segment-label input {
+    display: none;
+  }
+
+  .segment-label .icon {
+    font-size: 16px;
+    opacity: 0.7;
+    transition: opacity 0.3s;
+    filter: grayscale(1);
+  }
+
+  .segment-label .text {
+    font-size: 14px;
+    font-weight: 600;
+  }
+
+  .segment-label.active {
+    color: #0f172a;
+  }
+
+  .segment-label.active .icon {
+    opacity: 1;
+    filter: grayscale(0);
+  }
+
+  .segment-label.supabase.active {
+    color: #fff;
+  }
+
+  .segment-pill {
+    position: absolute;
+    top: 4px;
+    bottom: 4px;
+    left: 4px;
+    width: calc(50% - 4px);
+    background: #fff;
+    border-radius: 999px;
+    box-shadow:
+      0 2px 5px rgba(0, 0, 0, 0.1),
+      0 1px 2px rgba(0, 0, 0, 0.05);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    z-index: 1;
+  }
+
+  .segment-pill.supabase-active {
+    transform: translateX(100%);
+    background: linear-gradient(
+      135deg,
+      #3ecf8e 0%,
+      #35b37e 100%
+    ); /* Supabase green */
+  }
+
+  .storage-hint {
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hint {
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.2s;
+  }
+
+  .hint.local {
+    color: var(--fluent-accent);
+  }
+
+  .hint.cloud {
+    color: #3ecf8e;
   }
 
   /* Recent Runs */
   .recent-runs {
-    background: var(--fluent-bg-card);
     border: 1px solid var(--fluent-border-subtle);
     border-radius: var(--fluent-radius-l);
     padding: 20px;

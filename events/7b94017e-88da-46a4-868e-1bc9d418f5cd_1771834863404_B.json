@@ -1,0 +1,47 @@
+{
+  "stage_name": "B",
+  "summary": "문서 판정: YES ",
+  "rationale": "문서는 주주명부 형식을 가지며, 주주 이름, 식별 정보, 지분 정보, 회사명, 발행일이 모두 포함되어 있습니다. 지분의 기준은 주식수로 확인되었습니다.",
+  "confidence": 0.9,
+  "outputs": {
+    "is_shareholder_register": "YES",
+    "has_required_info": "YES",
+    "required_fields_present": {
+      "shareholder_names": "YES",
+      "shares_or_ratio": "YES",
+      "ownership_amount": "NO",
+      "total_shares": "YES",
+      "total_capital": "NO",
+      "share_class": "NO",
+      "entity_identifiers": "YES"
+    },
+    "doc_quality": {
+      "readability": "HIGH",
+      "table_structure": "OK",
+      "page_count_guess": 1
+    },
+    "detected_document_type": "주주명부",
+    "detected_ownership_basis": "SHARE_COUNT",
+    "document_info": {
+      "company_name": "주식회사 퍼처시스템",
+      "document_date": "2025년 12월 05일"
+    },
+    "rationale": "문서는 주주명부 형식을 가지며, 주주 이름, 식별 정보, 지분 정보, 회사명, 발행일이 모두 포함되어 있습니다. 지분의 기준은 주식수로 확인되었습니다.",
+    "evidence_refs": [
+      {
+        "page_no": 1,
+        "line_snippet": "주주명부",
+        "source": "VISION"
+      },
+      {
+        "page_no": 1,
+        "line_snippet": "발행일 : 2025년 12월 05일",
+        "source": "VISION"
+      }
+    ],
+    "route_suggestion": "EXTRACT"
+  },
+  "triggers": [],
+  "next_action": "AUTO_NEXT",
+  "timestamp": "2026-02-23T08:21:03.404Z"
+}

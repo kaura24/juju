@@ -1,0 +1,17 @@
+{
+  "id": "a4dd4f89-51e3-4e69-90ff-4653ac8c4899",
+  "status": "completed",
+  "files": [
+    "/uploads/252cfa2e-cda5-44a3-840b-6a5e0988801d.jpg"
+  ],
+  "execution_mode": "MULTI_AGENT",
+  "file_metadata": {
+    "/uploads/252cfa2e-cda5-44a3-840b-6a5e0988801d.jpg": {
+      "original_name": "주주명부_Case1_2026-01-24T15-34-17.jpg"
+    }
+  },
+  "created_at": "2026-02-23T08:12:51.957Z",
+  "updated_at": "2026-02-23T08:15:15.549Z",
+  "storage_provider": "LOCAL",
+  "current_stage": "INSIGHTS"
+}

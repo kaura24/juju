@@ -1,0 +1,17 @@
+{
+  "id": "b3fadc9b-03e2-4a5a-b4b8-683037915a75",
+  "status": "error",
+  "files": [
+    "/uploads/01f5318c-52c9-4504-adf4-8c5818e7e1f4.jpg"
+  ],
+  "execution_mode": "MULTI_AGENT",
+  "file_metadata": {
+    "/uploads/01f5318c-52c9-4504-adf4-8c5818e7e1f4.jpg": {
+      "original_name": "주주명부_Case1_2026-01-24T15-34-17.jpg"
+    }
+  },
+  "created_at": "2026-02-23T08:09:21.750Z",
+  "updated_at": "2026-02-23T08:09:27.319Z",
+  "storage_provider": "LOCAL",
+  "error": "[Converter] Local file paths are disabled. Expected a remote URL."
+}

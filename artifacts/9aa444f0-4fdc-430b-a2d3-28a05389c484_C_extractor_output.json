@@ -1,0 +1,182 @@
+{
+  "records": [
+    {
+      "raw_name": "김철수",
+      "raw_identifier": "750101-1234567",
+      "raw_shares": "6,000",
+      "raw_ratio": "60 %",
+      "raw_amount": null,
+      "raw_share_class": null,
+      "raw_address": null,
+      "raw_remarks": null,
+      "raw_entity_hints": [
+        "주민(사업자)번호",
+        "주민등록번호 패턴"
+      ],
+      "entity_signals": {
+        "has_resident_id_pattern": true,
+        "has_birth_date": false,
+        "has_personal_name_format": true,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": true,
+        "has_corporate_prefix_suffix": false,
+        "has_business_reg_number": false,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": true,
+        "identifier_column_header": "주민(사업자)번호"
+      },
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "김철수 750101-1234567 6,000 60 %",
+          "source": "VISION"
+        }
+      ]
+    },
+    {
+      "raw_name": "이영희",
+      "raw_identifier": "820505-2345678",
+      "raw_shares": "2,000",
+      "raw_ratio": "20 %",
+      "raw_amount": null,
+      "raw_share_class": null,
+      "raw_address": null,
+      "raw_remarks": null,
+      "raw_entity_hints": [
+        "주민(사업자)번호",
+        "주민등록번호 패턴"
+      ],
+      "entity_signals": {
+        "has_resident_id_pattern": true,
+        "has_birth_date": false,
+        "has_personal_name_format": true,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": true,
+        "has_corporate_prefix_suffix": false,
+        "has_business_reg_number": false,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": true,
+        "identifier_column_header": "주민(사업자)번호"
+      },
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "이영희 820505-2345678 2,000 20 %",
+          "source": "VISION"
+        }
+      ]
+    },
+    {
+      "raw_name": "(주)한빛소프트",
+      "raw_identifier": "120-81-12345",
+      "raw_shares": "1,500",
+      "raw_ratio": "15 %",
+      "raw_amount": null,
+      "raw_share_class": null,
+      "raw_address": null,
+      "raw_remarks": null,
+      "raw_entity_hints": [
+        "(주)",
+        "주민(사업자)번호",
+        "사업자번호 패턴"
+      ],
+      "entity_signals": {
+        "has_resident_id_pattern": false,
+        "has_birth_date": false,
+        "has_personal_name_format": false,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": true,
+        "has_corporate_prefix_suffix": true,
+        "has_business_reg_number": true,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": true,
+        "identifier_column_header": "주민(사업자)번호"
+      },
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "(주)한빛소프트 120-81-12345 1,500 15 %",
+          "source": "VISION"
+        }
+      ]
+    },
+    {
+      "raw_name": "박민수",
+      "raw_identifier": "900101-1010101",
+      "raw_shares": "500",
+      "raw_ratio": "5 %",
+      "raw_amount": null,
+      "raw_share_class": null,
+      "raw_address": null,
+      "raw_remarks": null,
+      "raw_entity_hints": [
+        "주민(사업자)번호",
+        "주민등록번호 패턴"
+      ],
+      "entity_signals": {
+        "has_resident_id_pattern": true,
+        "has_birth_date": false,
+        "has_personal_name_format": true,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": true,
+        "has_corporate_prefix_suffix": false,
+        "has_business_reg_number": false,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": true,
+        "identifier_column_header": "주민(사업자)번호"
+      },
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "박민수 900101-1010101 500 5 %",
+          "source": "VISION"
+        }
+      ]
+    }
+  ],
+  "document_info": {
+    "company_name": "주식회사 퓨처시스템",
+    "total_shares_declared": "10,000",
+    "total_capital_declared": null,
+    "par_value_per_share": null,
+    "document_date": "2025년 12월 05일",
+    "detected_ownership_basis": "SHARE_COUNT"
+  },
+  "table_structure": {
+    "column_headers": [
+      "No",
+      "주주명",
+      "주민(사업자)번호",
+      "소유주식수",
+      "지분율(%)",
+      "비고"
+    ],
+    "identifier_column_header": "주민(사업자)번호",
+    "has_total_row": true,
+    "total_row_values": {
+      "소유주식수": "10,000",
+      "지분율(%)": "100 %"
+    }
+  },
+  "extraction_notes": [
+    "게이트키퍼 제공 company_name 및 document_date 값을 그대로 사용함.",
+    "식별자 컬럼 헤더는 '주민(사업자)번호'로 개인/법인 혼합 표기."
+  ],
+  "blockers": []
+}

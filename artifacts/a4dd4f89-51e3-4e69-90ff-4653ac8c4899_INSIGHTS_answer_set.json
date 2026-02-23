@@ -1,0 +1,84 @@
+{
+  "document_assessment": {
+    "is_valid_shareholder_register": "YES",
+    "evidence_refs": []
+  },
+  "over_25_percent": [
+    {
+      "name": "김철수",
+      "entity_type": "INDIVIDUAL",
+      "entity_type_confidence": 1,
+      "entity_signals": {
+        "has_resident_id_pattern": true,
+        "has_birth_date": false,
+        "has_personal_name_format": true,
+        "explicitly_marked_individual": false,
+        "column_indicates_individual": true,
+        "has_corporate_prefix_suffix": false,
+        "has_business_reg_number": false,
+        "has_corporate_reg_number": false,
+        "has_representative_mention": false,
+        "explicitly_marked_corporate": false,
+        "has_foreign_corporate_suffix": false,
+        "has_investment_entity_keyword": false,
+        "column_indicates_corporate": true,
+        "identifier_column_header": "주민(사업자)번호"
+      },
+      "identifier": "1975-01-01",
+      "identifier_type": "BIRTH_DATE",
+      "shares": 6000,
+      "ratio": 60,
+      "amount": null,
+      "share_class": null,
+      "evidence_refs": [
+        {
+          "page_no": 1,
+          "line_snippet": "김철수 750101-1234567 6,000 60 %",
+          "source": "VISION"
+        }
+      ],
+      "confidence": 1,
+      "unknown_reasons": []
+    }
+  ],
+  "ordering_rule": "RATIO_DESC",
+  "totals": {
+    "total_shares_declared": 10000,
+    "total_amount_declared": null
+  },
+  "document_date": "2025-12-05",
+  "document_date_staleness": {
+    "is_stale": false,
+    "days_diff": 51,
+    "threshold_days": 365
+  },
+  "company_name": "주식회사 퍼처시스템",
+  "share_classes_found": [],
+  "trust_level": "HIGH",
+  "cannot_determine": [],
+  "synthesis_reasoning": "제출된 주주명부상 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계(10,000주)와 일치하여 정합성이 확보됨. 주요 주주인 김철수(6,000주, 60%), 이영희(2,000주, 20%), (주)한빛소프트(1,500주, 15%)의 지분율 합계 또한 100%로 검증됨. 따라서 실소유주 확인 측면에서, 김철수 및 이영희는 지분율이 25% 이상으로, 실제 소유주로 식별됨. 법인 주주인 (주)한빛소프트도 포함되어 있어, 기업의 지분 소유 구성이 명확함. 전체적으로 데이터가 정합하며, 개인 주주와 법인 주주 모두에 대한 필요한 정보가 기재되어 있음. 이에 따라, 실제 소유주 확인에 문제가 없으므로 최종 판정은 true로 확정됨.",
+  "synthesis_confidence": 0.5,
+  "validation_summary": {
+    "status": "PASS",
+    "triggers": [],
+    "summary_metrics": {
+      "total_records": 4,
+      "null_shares_count": 0,
+      "null_ratio_count": 0,
+      "null_amount_count": 4,
+      "sum_shares": 10000,
+      "sum_ratio": 100,
+      "sum_amount": null,
+      "has_reference_total": true,
+      "individual_count": 3,
+      "corporate_count": 1,
+      "unknown_entity_count": 0
+    },
+    "data_quality_score": 100,
+    "structural_failures": [],
+    "decidability": {
+      "is_decidable": true,
+      "reason": "제출된 주주명부상 총 발행주식수는 10,000주로, 개별 주주 보유주식의 합계(10,000주)와 일치하여 정합성이 확보됨. 주요 주주인 김철수(6,000주, 60%), 이영희(2,000주, 20%), (주)한빛소프트(1,500주, 15%)의 지분율 합계 또한 100%로 검증됨. 따라서 실소유주 확인 측면에서, 김철수 및 이영희는 지분율이 25% 이상으로, 실제 소유주로 식별됨. 법인 주주인 (주)한빛소프트도 포함되어 있어, 기업의 지분 소유 구성이 명확함. 전체적으로 데이터가 정합하며, 개인 주주와 법인 주주 모두에 대한 필요한 정보가 기재되어 있음. 이에 따라, 실제 소유주 확인에 문제가 없으므로 최종 판정은 true로 확정됨."
+    }
+  }
+}

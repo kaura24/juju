@@ -130,8 +130,9 @@ const GATEKEEPER_INSTRUCTIONS = `당신은 한국 주주명부 문서 분류 전
 }
 
 ## 라우팅 규칙 (중요)
-- is_shareholder_register=YES인데 필수 정보가 부족하면 HITL_TRIAGE 또는 REQUEST_MORE_INPUT
-- is_shareholder_register=NO일 때만 REJECT 사용
+- is_shareholder_register=YES 이고 필수 정보가 모두 존재하면 반드시 "EXTRACT"를 선택하세요.
+- is_shareholder_register=YES인데 필수 정보가 부족하면 "HITL_TRIAGE" 또는 "REQUEST_MORE_INPUT"
+- is_shareholder_register=NO일 때만 "REJECT" 사용
 
 ## 금지
 - 주주 정보를 추출하지 마세요 (C단계 역할)

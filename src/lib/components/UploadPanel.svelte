@@ -16,6 +16,9 @@
   let uploadAbortController: AbortController | null = $state(null);
   let cancelRequested = $state(false);
 
+  // Props
+  let { useSupabase = false } = $props<{ useSupabase?: boolean }>();
+
   // Logic
   let agentsReady = $state(false);
   let loadingPreviews = $state(false);
@@ -193,6 +196,7 @@
         formData.append("files", file);
       }
       formData.append("mode", mode);
+      formData.append("useSupabase", useSupabase.toString());
 
       const response = await fetch("/api/runs", {
         method: "POST",
@@ -214,10 +218,6 @@
       // Artificial delay for UX (to show the "success/navigating" state)
       setTimeout(() => {
         dispatch("uploaded", { runId, mode });
-        // Fallback: if parent handler fails, navigate directly
-        if (typeof window !== "undefined") {
-          window.location.href = `/runs/${runId}`;
-        }
       }, 1200);
     } catch (e) {
       if (e instanceof DOMException && e.name === "AbortError") {
@@ -793,11 +793,12 @@
     background: #ffffff;
     border: 1px solid #cbd5e1;
     color: #475569;
-    border-radius: 8px;
+    border-radius: 12px;
     font-weight: 600;
     cursor: pointer;
     height: 56px;
     transition: all 0.1s;
+    box-shadow: var(--fluent-shadow-2);
   }
   .btn-secondary:hover {
     background: #f8fafc;

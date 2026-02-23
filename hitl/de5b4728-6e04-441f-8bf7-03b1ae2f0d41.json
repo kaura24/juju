@@ -1,0 +1,203 @@
+{
+  "packet_id": "de5b4728-6e04-441f-8bf7-03b1ae2f0d41",
+  "id": "7c004114-769a-4aae-a068-e494417517b4",
+  "doc_id": "a0726a9e-f22c-440e-b1eb-6653d7f49dbf",
+  "run_id": "a0726a9e-f22c-440e-b1eb-6653d7f49dbf",
+  "stage": "E",
+  "created_at": "2026-02-23T09:15:01.032Z",
+  "status": "PENDING",
+  "reason_codes": [
+    "TOTAL_SHARES_MISMATCH",
+    "RATIO_INCONSISTENCY"
+  ],
+  "required_action": "REFERENCE_VALUE_INPUT",
+  "triggers": [
+    {
+      "rule_id": "E-SUM-001",
+      "severity": "BLOCKER",
+      "message": "주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이)",
+      "suggestion": "REFERENCE_VALUE_INPUT",
+      "metrics": {
+        "sum_shares": 900,
+        "total_shares_declared": 1000,
+        "diff_percent": "10.00"
+      }
+    },
+    {
+      "rule_id": "E-RAT-001",
+      "severity": "BLOCKER",
+      "message": "지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+      "suggestion": "MANUAL_CORRECTION",
+      "metrics": {
+        "sum_ratio": 90,
+        "coverage": 1
+      }
+    }
+  ],
+  "operator_notes": [],
+  "payload": {},
+  "context_data": {
+    "normalized": {
+      "shareholders": [
+        {
+          "name": "김요류",
+          "entity_type": "INDIVIDUAL",
+          "entity_type_confidence": 1,
+          "entity_signals": {
+            "has_resident_id_pattern": true,
+            "has_birth_date": false,
+            "has_personal_name_format": true,
+            "explicitly_marked_individual": false,
+            "column_indicates_individual": true,
+            "has_corporate_prefix_suffix": false,
+            "has_business_reg_number": false,
+            "has_corporate_reg_number": false,
+            "has_representative_mention": false,
+            "explicitly_marked_corporate": false,
+            "has_foreign_corporate_suffix": false,
+            "has_investment_entity_keyword": false,
+            "column_indicates_corporate": false,
+            "identifier_column_header": "주민등록번호"
+          },
+          "identifier": "1987-12-12",
+          "identifier_type": "BIRTH_DATE",
+          "shares": 300,
+          "ratio": 30,
+          "amount": null,
+          "share_class": null,
+          "evidence_refs": [
+            {
+              "page_no": 1,
+              "line_snippet": "김요류 701212-******** 30.0 % 300",
+              "source": "VISION"
+            }
+          ],
+          "confidence": 1,
+          "unknown_reasons": []
+        },
+        {
+          "name": "오계찬",
+          "entity_type": "INDIVIDUAL",
+          "entity_type_confidence": 1,
+          "entity_signals": {
+            "has_resident_id_pattern": true,
+            "has_birth_date": false,
+            "has_personal_name_format": true,
+            "explicitly_marked_individual": false,
+            "column_indicates_individual": true,
+            "has_corporate_prefix_suffix": false,
+            "has_business_reg_number": false,
+            "has_corporate_reg_number": false,
+            "has_representative_mention": false,
+            "explicitly_marked_corporate": false,
+            "has_foreign_corporate_suffix": false,
+            "has_investment_entity_keyword": false,
+            "column_indicates_corporate": false,
+            "identifier_column_header": "주민등록번호"
+          },
+          "identifier": "1988-08-08",
+          "identifier_type": "BIRTH_DATE",
+          "shares": 300,
+          "ratio": 30,
+          "amount": null,
+          "share_class": null,
+          "evidence_refs": [
+            {
+              "page_no": 1,
+              "line_snippet": "오계찬 880808-******** 30.0 % 300",
+              "source": "VISION"
+            }
+          ],
+          "confidence": 1,
+          "unknown_reasons": []
+        },
+        {
+          "name": "나머지",
+          "entity_type": "INDIVIDUAL",
+          "entity_type_confidence": 1,
+          "entity_signals": {
+            "has_resident_id_pattern": true,
+            "has_birth_date": false,
+            "has_personal_name_format": true,
+            "explicitly_marked_individual": false,
+            "column_indicates_individual": true,
+            "has_corporate_prefix_suffix": false,
+            "has_business_reg_number": false,
+            "has_corporate_reg_number": false,
+            "has_representative_mention": false,
+            "explicitly_marked_corporate": false,
+            "has_foreign_corporate_suffix": false,
+            "has_investment_entity_keyword": false,
+            "column_indicates_corporate": false,
+            "identifier_column_header": "주민등록번호"
+          },
+          "identifier": "1999-09-09",
+          "identifier_type": "BIRTH_DATE",
+          "shares": 300,
+          "ratio": 30,
+          "amount": null,
+          "share_class": null,
+          "evidence_refs": [
+            {
+              "page_no": 1,
+              "line_snippet": "나머지 990909-******** 30.0 % 300",
+              "source": "VISION"
+            }
+          ],
+          "confidence": 1,
+          "unknown_reasons": []
+        }
+      ],
+      "document_properties": {
+        "company_name": "주식회사 마스페일",
+        "total_shares_issued": 1000,
+        "total_capital": null,
+        "par_value_per_share": null,
+        "document_date": "2025-11-05",
+        "ownership_basis": "SHARE_COUNT",
+        "has_total_row": true,
+        "total_row_values": {
+          "shares": 1000,
+          "ratio": 100,
+          "amount": null
+        }
+      },
+      "ordering_detected": "UNKNOWN",
+      "ownership_basis_detected": "SHARE_COUNT",
+      "normalization_notes": []
+    },
+    "triggers": [
+      {
+        "rule_id": "E-SUM-001",
+        "severity": "BLOCKER",
+        "message": "주식수 합계 불일치: 합계=900, 선언값=1,000 (10.0% 차이)",
+        "suggestion": "REFERENCE_VALUE_INPUT",
+        "metrics": {
+          "sum_shares": 900,
+          "total_shares_declared": 1000,
+          "diff_percent": "10.00"
+        }
+      },
+      {
+        "rule_id": "E-RAT-001",
+        "severity": "BLOCKER",
+        "message": "지분율 합계 불일치: 90.00% (100%±0.5% 범위 초과)",
+        "suggestion": "MANUAL_CORRECTION",
+        "metrics": {
+          "sum_ratio": 90,
+          "coverage": 1
+        }
+      }
+    ]
+  },
+  "document_snapshot": {
+    "company_name": "주식회사 마스페일",
+    "document_date": "2025-11-05",
+    "shareholder_count": 3,
+    "preview_names": [
+      "김요류",
+      "오계찬",
+      "나머지"
+    ]
+  }
+}

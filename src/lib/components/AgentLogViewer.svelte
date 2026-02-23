@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
+  import html2canvas from "html2canvas";
 
   interface Props {
     runId: string;
@@ -53,6 +54,7 @@
   let selectedAgent: string | null = $state(null);
   let autoRefresh = $state(true);
   let refreshInterval: NodeJS.Timeout | null = null;
+  let capturingAgents: Record<string, boolean> = $state({});
 
   const agentDisplayNames: Record<string, string> = {
     Orchestrator: "🎯 오케스트레이터",
@@ -118,6 +120,39 @@
 
   function toggleAgent(agent: string) {
     selectedAgent = selectedAgent === agent ? null : agent;
+  }
+
+  async function captureAgentLogs(agentId: string, event: MouseEvent) {
+    event.stopPropagation(); // 캡쳐 버튼 클릭 시 아코디언이 토글되는 것을 방지
+
+    // 만약 에이전트 로그가 열려있지 않다면 먼저 엽니다
+    if (selectedAgent !== agentId) {
+      selectedAgent = agentId;
+      // 토글 후 DOM이 렌더링되기를 짧게 기다립니다 (Svelte 5에서는 tick 사용 권장)
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
+    const element = document.getElementById(`agent-card-${agentId}`);
+    if (!element) return;
+
+    try {
+      capturingAgents[agentId] = true;
+      const canvas = await html2canvas(element, {
+        backgroundColor: "#1e1e2e",
+        scale: 2, // 고해상도로 캡쳐
+      });
+
+      const image = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = image;
+      a.download = `agent-log-${agentId}-${new Date().toISOString().slice(0, 10)}.png`;
+      a.click();
+    } catch (err) {
+      console.error("캡쳐 실패:", err);
+      // alert("캡쳐 중 오류가 발생했습니다."); // 사용자 알림 (필요 시 주석 해제)
+    } finally {
+      capturingAgents[agentId] = false;
+    }
   }
 
   export function addLogEntry(entry: AgentLogEntry) {
@@ -195,22 +230,33 @@
     <div class="agent-list">
       {#each logReport.agents as agentLog}
         <div
+          id={`agent-card-${agentLog.agent}`}
           class="agent-card {agentLog.status === 'RUNNING' ? 'running' : ''}"
         >
-          <button
-            class="agent-header"
-            onclick={() => toggleAgent(agentLog.agent)}
-          >
-            <div class="agent-name">
-              {agentDisplayNames[agentLog.agent] || agentLog.agent}
-            </div>
-            <div class="agent-status {statusColors[agentLog.status] || ''}">
-              {agentLog.status}
-            </div>
-            <div class="expand-icon">
-              {selectedAgent === agentLog.agent ? "▼" : "▶"}
-            </div>
-          </button>
+          <div class="agent-header-wrapper">
+            <button
+              class="agent-header"
+              onclick={() => toggleAgent(agentLog.agent)}
+            >
+              <div class="agent-name">
+                {agentDisplayNames[agentLog.agent] || agentLog.agent}
+              </div>
+              <div class="agent-status {statusColors[agentLog.status] || ''}">
+                {agentLog.status}
+              </div>
+              <div class="expand-icon">
+                {selectedAgent === agentLog.agent ? "▼" : "▶"}
+              </div>
+            </button>
+            <button
+              class="capture-btn"
+              onclick={(e) => captureAgentLogs(agentLog.agent, e)}
+              disabled={capturingAgents[agentLog.agent]}
+              title="에이전트 로그 화면 캡쳐"
+            >
+              {capturingAgents[agentLog.agent] ? "⏳" : "📸 캡쳐"}
+            </button>
+          </div>
 
           {#if agentLog.summary}
             <div class="agent-summary">
@@ -463,21 +509,57 @@
     }
   }
 
+  .agent-header-wrapper {
+    display: flex;
+    align-items: center;
+    background: transparent;
+    transition: background 0.2s;
+  }
+
+  .agent-header-wrapper:hover {
+    background: #45475a;
+  }
+
   .agent-header {
     display: flex;
     align-items: center;
-    width: 100%;
+    flex: 1;
     padding: 12px 16px;
     background: transparent;
     border: none;
     color: inherit;
     cursor: pointer;
     text-align: left;
-    transition: background 0.2s;
   }
 
-  .agent-header:hover {
-    background: #45475a;
+  .capture-btn {
+    background: #cba6f7; /* 보라색 뱃지 느낌 */
+    color: #11111b; /* 다크 텍스트 */
+    border: none;
+    border-radius: 20px;
+    padding: 6px 12px;
+    margin-right: 16px;
+    font-size: 0.8em;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+  }
+
+  .capture-btn:hover:not(:disabled) {
+    background: #b4befe;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+  }
+
+  .capture-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: #6c7086;
+    color: #cdd6f4;
   }
 
   .agent-name {
